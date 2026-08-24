@@ -1,0 +1,2176 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FB Auto Poster — Tuyển Dụng Tự Động</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet" />
+  <style>
+    /* ═══════════════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════════════ */
+    :root {
+      --bg: #07090f;
+      --surface: #0f1623;
+      --surface2: #161f30;
+      --surface3: #1e2a3d;
+      --border: #1e2d45;
+      --border2: #263348;
+
+      --accent: #6366f1;
+      --accent2: #818cf8;
+      --accent-glow: rgba(99, 102, 241, .25);
+
+      --success: #10b981;
+      --error: #ef4444;
+      --warning: #f59e0b;
+      --info: #38bdf8;
+
+      --text: #e2e8f0;
+      --text2: #94a3b8;
+      --text3: #64748b;
+
+      --radius: 12px;
+      --radius-sm: 8px;
+      --trans: .18s ease;
+      --sidebar-w: 220px;
+      --console-h: 210px;
+    }
+
+    /* ═══════════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════════ */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    html,
+    body {
+      height: 100%;
+      overflow: hidden
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    button {
+      cursor: pointer;
+      font-family: inherit
+    }
+
+    input,
+    textarea,
+    select {
+      font-family: inherit
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border2);
+      border-radius: 99px
+    }
+
+    /* ═══════════════════════════════════════════════
+   LAYOUT SHELL
+═══════════════════════════════════════════════ */
+    .shell {
+      display: grid;
+      grid-template-rows: 56px 1fr var(--console-h);
+      grid-template-columns: var(--sidebar-w) 1fr;
+      height: 100vh;
+    }
+
+    /* ─── Header ─────────────────────────────────── */
+    header {
+      grid-column: 1/-1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      z-index: 10;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: -.3px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    .header-spacer {
+      flex: 1
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 500;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      transition: var(--trans);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--text3);
+      transition: var(--trans);
+    }
+
+    .status-dot.running {
+      background: var(--warning);
+      box-shadow: 0 0 8px var(--warning);
+      animation: pulse 1.2s infinite
+    }
+
+    .status-dot.idle {
+      background: var(--success)
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .4
+      }
+    }
+
+    .btn-fb {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, #1877f2, #1059c4);
+      color: #fff;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      transition: var(--trans);
+      box-shadow: 0 2px 12px rgba(24, 119, 242, .3);
+    }
+
+    .btn-fb:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 18px rgba(24, 119, 242, .45)
+    }
+
+    .btn-fb:active {
+      transform: translateY(0)
+    }
+
+    /* ─── Sidebar ─────────────────────────────────── */
+    nav.sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 12px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow-y: auto;
+    }
+
+    .nav-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      color: var(--text3);
+      text-transform: uppercase;
+      padding: 10px 8px 4px;
+    }
+
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: transparent;
+      color: var(--text2);
+      font-size: 13px;
+      font-weight: 500;
+      width: 100%;
+      text-align: left;
+      transition: var(--trans);
+      position: relative;
+    }
+
+    .nav-btn:hover {
+      background: var(--surface2);
+      color: var(--text)
+    }
+
+    .nav-btn.active {
+      background: var(--accent-glow);
+      color: var(--accent2);
+      border: 1px solid rgba(99, 102, 241, .35);
+    }
+
+    .nav-btn .icon {
+      font-size: 16px;
+      flex-shrink: 0
+    }
+
+    .nav-badge {
+      margin-left: auto;
+      min-width: 18px;
+      height: 18px;
+      border-radius: 99px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+    }
+
+    /* ─── Main content ─────────────────────────────── */
+    main.content {
+      overflow-y: auto;
+      padding: 20px;
+      background: var(--bg);
+    }
+
+    .tab-panel {
+      display: none
+    }
+
+    .tab-panel.active {
+      display: block
+    }
+
+    /* ─── Log Console ─────────────────────────────── */
+    .console {
+      grid-column: 1/-1;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .console-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .console-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text2);
+      letter-spacing: .05em;
+      text-transform: uppercase
+    }
+
+    .console-clear {
+      margin-left: auto;
+      background: transparent;
+      border: none;
+      color: var(--text3);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 2px 8px;
+      border-radius: 4px;
+      transition: var(--trans);
+    }
+
+    .console-clear:hover {
+      color: var(--text);
+      background: var(--surface2)
+    }
+
+    .console-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 16px;
+      font-family: 'Consolas', 'Fira Code', monospace;
+      font-size: 12px;
+    }
+
+    .log-line {
+      display: flex;
+      gap: 10px;
+      padding: 2px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, .03);
+      animation: fadeIn .2s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(4px)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    .log-time {
+      color: var(--text3);
+      flex-shrink: 0;
+      width: 52px
+    }
+
+    .log-msg.success {
+      color: var(--success)
+    }
+
+    .log-msg.error {
+      color: var(--error)
+    }
+
+    .log-msg.warning {
+      color: var(--warning)
+    }
+
+    .log-msg.info {
+      color: var(--text2)
+    }
+
+    /* ═══════════════════════════════════════════════
+   COMMON COMPONENTS
+═══════════════════════════════════════════════ */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text2);
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .form-group {
+      margin-bottom: 14px
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text2);
+      margin-bottom: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: var(--trans);
+    }
+
+    .form-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow)
+    }
+
+    .form-textarea {
+      resize: vertical;
+      min-height: 160px;
+      line-height: 1.6;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      transition: var(--trans);
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      color: #fff;
+      box-shadow: 0 2px 12px var(--accent-glow);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px var(--accent-glow)
+    }
+
+    .btn-primary:active {
+      transform: translateY(0)
+    }
+
+    .btn-primary:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+      transform: none
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff
+    }
+
+    .btn-success:hover {
+      filter: brightness(1.1)
+    }
+
+    .btn-danger {
+      background: var(--error);
+      color: #fff
+    }
+
+    .btn-danger:hover {
+      filter: brightness(1.1)
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text2);
+      border: 1px solid var(--border2);
+    }
+
+    .btn-ghost:hover {
+      background: var(--surface2);
+      color: var(--text)
+    }
+
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 12px
+    }
+
+    /* Group tag */
+    .group-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 99px;
+      background: var(--surface3);
+      border: 1px solid var(--border2);
+      font-size: 12px;
+      cursor: pointer;
+      transition: var(--trans);
+      user-select: none;
+    }
+
+    .group-chip:hover {
+      border-color: var(--accent);
+      color: var(--accent2)
+    }
+
+    .group-chip.selected {
+      background: var(--accent-glow);
+      border-color: var(--accent);
+      color: var(--accent2);
+    }
+
+    .group-chip .chip-remove {
+      color: var(--text3);
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 2px;
+    }
+
+    .group-chip .chip-remove:hover {
+      color: var(--error)
+    }
+
+    /* Toggle */
+    .toggle-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px
+    }
+
+    .toggle {
+      width: 36px;
+      height: 20px;
+      border-radius: 99px;
+      background: var(--surface3);
+      border: 1px solid var(--border2);
+      position: relative;
+      cursor: pointer;
+      transition: var(--trans);
+      flex-shrink: 0;
+    }
+
+    .toggle.on {
+      background: var(--accent);
+      border-color: var(--accent)
+    }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      transition: var(--trans);
+    }
+
+    .toggle.on::after {
+      left: 18px
+    }
+
+    /* Badge */
+    .badge {
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-success {
+      background: rgba(16, 185, 129, .15);
+      color: var(--success)
+    }
+
+    .badge-error {
+      background: rgba(239, 68, 68, .15);
+      color: var(--error)
+    }
+
+    .badge-warning {
+      background: rgba(245, 158, 11, .15);
+      color: var(--warning)
+    }
+
+    /* Row list */
+    .list-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      margin-bottom: 8px;
+      transition: var(--trans);
+    }
+
+    .list-row:hover {
+      border-color: var(--border2)
+    }
+
+    .list-row-name {
+      font-size: 13px;
+      font-weight: 500;
+      flex: 1;
+      min-width: 0
+    }
+
+    .list-row-url {
+      font-size: 11px;
+      color: var(--text3);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1.5
+    }
+
+    /* Range input */
+    .range-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px
+    }
+
+    .range-wrap input[type=range] {
+      flex: 1;
+      accent-color: var(--accent)
+    }
+
+    .range-val {
+      min-width: 50px;
+      text-align: right;
+      font-size: 12px;
+      color: var(--accent2);
+      font-weight: 600;
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 16px 0
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text3);
+    }
+
+    .empty-state .empty-icon {
+      font-size: 40px;
+      margin-bottom: 12px
+    }
+
+    .empty-state p {
+      font-size: 13px
+    }
+
+    /* Tabs (inside compose) */
+    .inline-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px
+    }
+
+    .inline-tab {
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: transparent;
+      color: var(--text2);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--trans);
+    }
+
+    .inline-tab.active {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border2)
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(0, 0, 0, .6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+      opacity: 0;
+      pointer-events: none;
+      transition: var(--trans);
+    }
+
+    .modal-overlay.open {
+      opacity: 1;
+      pointer-events: all
+    }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 24px;
+      width: min(480px, 92vw);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, .6);
+      transform: translateY(20px);
+      transition: transform .2s ease;
+    }
+
+    .modal-overlay.open .modal {
+      transform: none
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 20px
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px
+    }
+
+    /* Progress */
+    .progress-wrap {
+      height: 4px;
+      background: var(--surface3);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, var(--accent), #8b5cf6);
+      width: 0%;
+      transition: width .4s ease;
+    }
+
+    /* ═══════════════════════════════════════════════
+   PAGE: COMPOSE
+═══════════════════════════════════════════════ */
+    .compose-grid {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    @media(max-width:900px) {
+      .compose-grid {
+        grid-template-columns: 1fr
+      }
+    }
+
+    .editor-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px
+    }
+
+    .editor-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap
+    }
+
+    /* ── Rich Text Toolbar ── */
+    .rte-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 8px;
+      background: var(--surface3);
+      border: 1px solid var(--border2);
+      border-bottom: none;
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    }
+
+    .rte-btn {
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text2);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: var(--trans);
+      font-family: 'Inter', sans-serif;
+      position: relative;
+    }
+
+    .rte-btn:hover {
+      background: var(--surface2);
+      color: var(--text);
+      border-color: var(--border2)
+    }
+
+    .rte-btn.active {
+      background: var(--accent-glow);
+      color: var(--accent2);
+      border-color: rgba(99, 102, 241, .4)
+    }
+
+    .rte-btn[data-cmd="bold"] span {
+      font-weight: 800;
+      font-style: normal;
+      text-decoration: none
+    }
+
+    .rte-btn[data-cmd="italic"] span {
+      font-style: italic;
+      font-weight: 400
+    }
+
+    .rte-btn[data-cmd="underline"] span {
+      text-decoration: underline;
+      font-weight: 400
+    }
+
+    .rte-sep {
+      width: 1px;
+      height: 20px;
+      background: var(--border2);
+      margin: 0 4px;
+      flex-shrink: 0
+    }
+
+    .rte-hint {
+      font-size: 10px;
+      color: var(--text3);
+      margin-left: auto;
+      letter-spacing: .02em
+    }
+
+    /* ── ContentEditable editor ── */
+    .rte-editor {
+      width: 100%;
+      min-height: 160px;
+      max-height: 360px;
+      overflow-y: auto;
+      padding: 10px 12px;
+      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.7;
+      outline: none;
+      white-space: pre-wrap;
+      word-break: break-word;
+      transition: border-color var(--trans), box-shadow var(--trans);
+    }
+
+    .rte-editor:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow)
+    }
+
+    .rte-editor:empty::before {
+      content: attr(data-placeholder);
+      color: var(--text3);
+      pointer-events: none;
+      font-style: italic;
+    }
+
+
+
+    /* Group selector chips area */
+    .group-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      min-height: 40px;
+      padding: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-sm);
+      margin-top: 6px;
+    }
+
+    .sel-count {
+      font-size: 11px;
+      color: var(--text3);
+      margin-top: 4px
+    }
+
+    /* ═══════════════════════════════════════════════
+   PAGE: GROUPS
+═══════════════════════════════════════════════ */
+    .groups-toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .groups-toolbar input {
+      flex: 1;
+      min-width: 180px;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: var(--trans);
+    }
+
+    .groups-toolbar input:focus {
+      border-color: var(--accent)
+    }
+
+    /* Category group section */
+    .cat-section {
+      margin-bottom: 18px
+    }
+
+    .cat-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      margin-bottom: 6px;
+      cursor: pointer;
+      user-select: none;
+      transition: var(--trans);
+    }
+
+    .cat-header:hover {
+      border-color: var(--accent);
+      background: var(--surface3)
+    }
+
+    .cat-label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      flex: 1;
+    }
+
+    .cat-count {
+      font-size: 11px;
+      color: var(--text3);
+      background: var(--surface3);
+      border: 1px solid var(--border2);
+      padding: 2px 8px;
+      border-radius: 99px;
+    }
+
+    .cat-sel-btn {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border2);
+      background: transparent;
+      color: var(--text2);
+      cursor: pointer;
+      transition: var(--trans);
+    }
+
+    .cat-sel-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent2)
+    }
+
+    .cat-chevron {
+      font-size: 12px;
+      color: var(--text3);
+      transition: transform .2s;
+    }
+
+    .cat-section.collapsed .cat-chevron {
+      transform: rotate(-90deg)
+    }
+
+    .cat-body {
+      overflow: hidden;
+      transition: max-height .2s ease
+    }
+
+    .cat-section.collapsed .cat-body {
+      max-height: 0 !important
+    }
+
+    /* ── Group chips by category in compose ── */
+    .chip-cat-label {
+      width: 100%;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      padding: 4px 2px 2px;
+      border-bottom: 1px solid var(--border2);
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chip-cat-sel-btn {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 5px;
+      border: 1px solid var(--border2);
+      background: transparent;
+      color: var(--text3);
+      cursor: pointer;
+      transition: var(--trans);
+      margin-left: auto;
+    }
+
+    .chip-cat-sel-btn:hover {
+      border-color: var(--accent2);
+      color: var(--accent2)
+    }
+
+    /* ── Bulk-add rows (import) ── */
+    .bulk-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 140px 32px;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 6px;
+      animation: fadeIn .15s ease;
+    }
+
+    .bulk-row input,
+    .bulk-row select {
+      padding: 7px 9px;
+      border-radius: var(--radius-sm);
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+      transition: var(--trans);
+      width: 100%;
+    }
+
+    .bulk-row input:focus,
+    .bulk-row select:focus {
+      border-color: var(--accent)
+    }
+
+    .bulk-row select {
+      cursor: pointer
+    }
+
+    .bulk-row-del {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      color: var(--text3);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--trans);
+    }
+
+    .bulk-row-del:hover {
+      background: rgba(239, 68, 68, .15);
+      color: var(--error)
+    }
+
+    .bulk-header {
+      display: grid;
+      grid-template-columns: 1fr 1fr 140px 32px;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .bulk-header span {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .05em;
+      color: var(--text3);
+      text-transform: uppercase;
+      padding: 0 2px;
+    }
+
+    .bulk-scroll {
+      max-height: 340px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    /* ═══════════════════════════════════════════════
+   PAGE: SCHEDULE
+═══════════════════════════════════════════════ */
+    .sched-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      border-radius: var(--radius);
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      margin-bottom: 10px;
+      animation: fadeIn .2s ease;
+    }
+
+    .sched-time {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent2);
+      white-space: nowrap;
+      min-width: 130px;
+    }
+
+    .sched-id {
+      font-size: 11px;
+      color: var(--text3);
+      flex: 1
+    }
+
+    /* ═══════════════════════════════════════════════
+   PAGE: HISTORY
+═══════════════════════════════════════════════ */
+    .hist-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      margin-bottom: 8px;
+      animation: fadeIn .2s ease;
+    }
+
+    .hist-meta {
+      font-size: 11px;
+      color: var(--text3);
+      white-space: nowrap
+    }
+
+    .hist-preview {
+      flex: 1;
+      font-size: 12px;
+      color: var(--text2);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+  </style>
+</head>
+
+<body>
+  <div class="shell">
+
+    <!-- ══════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════ -->
+    <header>
+      <div class="logo">
+        <div class="logo-icon">📣</div>
+        FB Auto Poster
+      </div>
+      <div class="header-spacer"></div>
+      <div class="status-pill" id="statusPill">
+        <div class="status-dot idle" id="statusDot"></div>
+        <span id="statusText">Sẵn sàng</span>
+      </div>
+      <button class="btn-fb" onclick="connectFacebook()">
+        <span>🔗</span> Kết nối Facebook
+      </button>
+    </header>
+
+    <!-- ══════════════════════════════════════════
+     SIDEBAR
+══════════════════════════════════════════ -->
+    <nav class="sidebar">
+      <div class="nav-label">Chức năng</div>
+      <button class="nav-btn active" data-tab="compose" onclick="switchTab('compose',this)">
+        <span class="icon">✏️</span> Soạn & Đăng
+      </button>
+      <button class="nav-btn" data-tab="groups" onclick="switchTab('groups',this)">
+        <span class="icon">👥</span> Quản lý Group
+        <span class="nav-badge" id="groupBadge">0</span>
+      </button>
+      <button class="nav-btn" data-tab="schedule" onclick="switchTab('schedule',this)">
+        <span class="icon">📅</span> Lịch đã đặt
+        <span class="nav-badge" id="schedBadge" style="display:none">0</span>
+      </button>
+      <button class="nav-btn" data-tab="history" onclick="switchTab('history',this)">
+        <span class="icon">📋</span> Lịch sử
+      </button>
+      <div style="flex:1"></div>
+      <button class="nav-btn" style="color:var(--error)" onclick="stopPosting()" id="stopBtn" disabled>
+        <span class="icon">⏹️</span> Dừng ngay
+      </button>
+    </nav>
+
+    <!-- ══════════════════════════════════════════
+     MAIN CONTENT
+══════════════════════════════════════════ -->
+    <main class="content">
+
+      <!-- ── TAB: COMPOSE ─────────────────────── -->
+      <div class="tab-panel active" id="tab-compose">
+        <div class="compose-grid">
+
+          <!-- Left: Editor -->
+          <div>
+            <div class="card">
+              <div class="card-title">✏️ Nội dung bài đăng</div>
+
+              <!-- Template quick-load -->
+              <div class="editor-top">
+                <select class="form-input" style="max-width:200px;padding:6px 10px" id="templateSelect"
+                  onchange="loadTemplate()">
+                  <option value="">📄 Chọn template…</option>
+                </select>
+                <button class="btn btn-ghost btn-sm" onclick="saveAsTemplate()">💾 Lưu template</button>
+              </div>
+
+              <!-- Rich Text Toolbar -->
+              <div class="rte-toolbar" id="rteToolbar">
+                <button class="rte-btn" id="btnBold" data-cmd="bold" title="In đậm (Ctrl+B)"
+                  onclick="rteFormat('bold')"><span>B</span></button>
+                <button class="rte-btn" id="btnItalic" data-cmd="italic" title="In nghiêng (Ctrl+I)"
+                  onclick="rteFormat('italic')"><span>I</span></button>
+                <button class="rte-btn" id="btnUnderline" data-cmd="underline" title="Gạch chân (Ctrl+U)"
+                  onclick="rteFormat('underline')"><span>U</span></button>
+                <div class="rte-sep"></div>
+                <button class="rte-btn" title="Xóa định dạng" onclick="rteFormat('removeFormat')"
+                  style="font-size:12px;width:auto;padding:0 8px;font-weight:400">✕ Xóa định dạng</button>
+                <span class="rte-hint">Ctrl+B / Ctrl+I / Ctrl+U</span>
+              </div>
+
+              <!-- ContentEditable Rich Editor -->
+              <div class="rte-editor" id="postContent" contenteditable="true"
+                data-placeholder="Nhập nội dung bài đăng tuyển dụng...&#10;&#10;Ví dụ:&#10;🔥 TUYỂN DỤNG: [Vị trí]&#10;📍 Địa điểm: ...&#10;💰 Lương: ...&#10;📩 Ứng tuyển: [link Google Form]">
+              </div>
+
+              <div class="divider"></div>
+
+              <!-- Char count & format info -->
+              <div style="display:flex;gap:12px;font-size:11px;color:var(--text3);align-items:center">
+                <span id="charCount">0 ký tự</span>
+                <span style="margin-left:auto;color:var(--accent2);font-size:10px" id="formatHint"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Settings + Groups + Actions -->
+          <div>
+            <!-- Group selector -->
+            <div class="card">
+              <div class="card-title">👥 Group sẽ đăng</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <span class="sel-count" id="selCount">Chưa chọn group nào</span>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn-ghost btn-sm" onclick="selectAllGroups()">Tất cả</button>
+                  <button class="btn btn-ghost btn-sm" onclick="clearGroupSel()">Bỏ chọn</button>
+                </div>
+              </div>
+              <div class="group-chips" id="groupChips">
+                <span style="color:var(--text3);font-size:12px">Chưa có group. Thêm ở tab 👥</span>
+              </div>
+            </div>
+
+            <!-- Delay settings -->
+            <div class="card">
+              <div class="card-title">⏱️ Thời gian chờ giữa các group</div>
+              <div class="form-group">
+                <label class="form-label">Tối thiểu (phút)</label>
+                <div class="range-wrap">
+                  <input type="range" id="minDelay" min="1" max="10" value="1"
+                    oninput="document.getElementById('minDelayVal').textContent=this.value+' phút'" />
+                  <span class="range-val" id="minDelayVal">1 phút</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tối đa (phút)</label>
+                <div class="range-wrap">
+                  <input type="range" id="maxDelay" min="2" max="20" value="5"
+                    oninput="document.getElementById('maxDelayVal').textContent=this.value+' phút'" />
+                  <span class="range-val" id="maxDelayVal">10 phút</span>
+                </div>
+              </div>
+              <p style="font-size:11px;color:var(--text3);margin-top:-6px">
+                Tool sẽ nghỉ ngẫu nhiên trong khoảng này giữa mỗi group để tránh spam.
+              </p>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="card">
+              <div class="card-title">🚀 Hành động</div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <button class="btn btn-primary" id="postNowBtn" onclick="postNow()"
+                  style="justify-content:center;padding:12px">
+                  <span>🚀</span> Đăng ngay
+                </button>
+                <button class="btn btn-ghost" onclick="openScheduleModal()" style="justify-content:center">
+                  <span>📅</span> Hẹn giờ đăng
+                </button>
+              </div>
+              <div class="progress-wrap" id="progressWrap" style="display:none;margin-top:12px">
+                <div class="progress-bar" id="progressBar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TAB: GROUPS ─────────────────────── -->
+      <div class="tab-panel" id="tab-groups">
+        <div class="card">
+          <div class="card-title">👥 Danh sách Group Facebook</div>
+          <div class="groups-toolbar">
+            <input type="text" id="searchGroup" placeholder="🔍 Tìm group..." oninput="renderGroups()" />
+            <button class="btn btn-primary btn-sm" onclick="openAddGroupModal()">
+              ＋ Thêm group
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="openImportModal()">
+              📥 Nhập hàng loạt
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="expandAllCats()" title="Mở tất cả nhóm">⊞</button>
+            <button class="btn btn-ghost btn-sm" onclick="collapseAllCats()" title="Thu gọn tất cả">⊟</button>
+          </div>
+          <div id="groupsList"></div>
+        </div>
+      </div>
+
+      <!-- ── TAB: SCHEDULE ─────────────────────── -->
+      <div class="tab-panel" id="tab-schedule">
+        <div class="card">
+          <div class="card-title">📅 Lịch đăng bài sắp tới</div>
+          <div id="schedList"></div>
+        </div>
+      </div>
+
+      <!-- ── TAB: HISTORY ─────────────────────── -->
+      <div class="tab-panel" id="tab-history">
+        <div class="card">
+          <div class="card-title">📋 Lịch sử đăng bài</div>
+          <div id="histList"></div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- ══════════════════════════════════════════
+     LOG CONSOLE
+══════════════════════════════════════════ -->
+    <div class="console">
+      <div class="console-header">
+        <span style="font-size:8px;color:var(--error)">●</span>
+        <span style="font-size:8px;color:var(--warning)">●</span>
+        <span style="font-size:8px;color:var(--success)">●</span>
+        <span class="console-title" style="margin-left:6px">Live Log</span>
+        <button class="console-clear" onclick="clearLog()">Xóa log</button>
+      </div>
+      <div class="console-body" id="consoleBody">
+        <div class="log-line">
+          <span class="log-time">--:--:--</span>
+          <span class="log-msg info">🎉 FB Auto Poster khởi động. Chào mừng!</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /shell -->
+
+  <!-- ══════════════════════════════════════════
+     MODAL: Add Group
+══════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modalAddGroup">
+    <div class="modal">
+      <div class="modal-title">➕ Thêm Group Facebook</div>
+      <div class="form-group">
+        <label class="form-label">Tên group (để nhận diện)</label>
+        <input class="form-input" id="newGroupName" placeholder="Ví dụ: Tuyển dụng IT HN" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">URL group Facebook</label>
+        <input class="form-input" id="newGroupUrl" placeholder="https://www.facebook.com/groups/..." />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phân nhóm (tùy chọn)</label>
+        <input class="form-input" id="newGroupCat" placeholder="Ví dụ: Hà Nội, IT, Marketing..." />
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modalAddGroup')">Hủy</button>
+        <button class="btn btn-primary" onclick="addGroup()">✓ Thêm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+     MODAL: Import Groups (bulk-add rows)
+══════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modalImport">
+    <div class="modal" style="width:min(780px,96vw)">
+      <div class="modal-title">📥 Nhập nhiều Group cùng lúc</div>
+      <div class="bulk-header">
+        <span>Tên group</span>
+        <span>Link Facebook</span>
+        <span>Phân nhóm (Tag)</span>
+        <span></span>
+      </div>
+      <div class="bulk-scroll" id="bulkRows"></div>
+      <button class="btn btn-ghost btn-sm" onclick="addBulkRow()"
+        style="margin-top:6px;width:100%;justify-content:center">
+        ＋ Thêm dòng
+      </button>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modalImport')">Hủy</button>
+        <button class="btn btn-primary" onclick="importGroups()">📥 Lưu tất cả</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+     MODAL: Schedule
+══════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modalSchedule">
+    <div class="modal">
+      <div class="modal-title">📅 Hẹn giờ đăng bài</div>
+      <div class="form-group">
+        <label class="form-label">Thời điểm đăng</label>
+        <input class="form-input" type="datetime-local" id="schedTime" />
+      </div>
+      <p style="font-size:12px;color:var(--text2)">
+        Bài sẽ được đăng lên tất cả group đang được chọn vào đúng giờ này.
+      </p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modalSchedule')">Hủy</button>
+        <button class="btn btn-primary" onclick="schedulePost()">📅 Đặt lịch</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+     MODAL: Save Template
+══════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modalSaveTemplate">
+    <div class="modal">
+      <div class="modal-title">💾 Lưu Template</div>
+      <div class="form-group">
+        <label class="form-label">Tên template</label>
+        <input class="form-input" id="templateName" placeholder="Ví dụ: Tuyển IT Senior..." />
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modalSaveTemplate')">Hủy</button>
+        <button class="btn btn-primary" onclick="confirmSaveTemplate()">💾 Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════ -->
+  <script>
+    // ═══════════════════════════════════════════
+    //  STATE
+    // ═══════════════════════════════════════════
+    let groups = [];   // all saved groups
+    let templates = [];
+    let selGroups = new Set();  // selected group indices
+    let isRunning = false;
+    let schedJobs = [];
+
+    // ═══════════════════════════════════════════
+    //  INIT
+    // ═══════════════════════════════════════════
+    (async function init() {
+      await Promise.all([loadGroups(), loadTemplates()]);
+      renderGroupChips();
+      renderGroups();
+      loadHistory();
+      loadScheduledJobs();
+      startSSE();
+      pollStatus();
+      // Set default schedule time to 1 hour from now
+      const dt = new Date(Date.now() + 3600_000);
+      dt.setSeconds(0, 0);
+      document.getElementById('schedTime').value = dt.toISOString().slice(0, 16);
+      // Char counter (now handled by updateCharCount() in RTE setup)
+    })();
+
+    // ═══════════════════════════════════════════
+    //  API HELPERS
+    // ═══════════════════════════════════════════
+    async function api(path, opts = {}) {
+      const r = await fetch(path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...opts
+      });
+      return r.json();
+    }
+
+    // ═══════════════════════════════════════════
+    //  SSE — real-time log
+    // ═══════════════════════════════════════════
+    function startSSE() {
+      const es = new EventSource('/api/stream');
+      es.onmessage = e => {
+        const d = JSON.parse(e.data);
+        if (d.type === 'ping') return;
+        if (d.type === 'log') addLog(d.time, d.message, d.level);
+        if (d.type === 'done') {
+          isRunning = false;
+          updateStatusUI(false);
+          loadHistory();
+        }
+      };
+      es.onerror = () => setTimeout(startSSE, 3000);
+    }
+
+    function addLog(time, msg, level = 'info') {
+      const body = document.getElementById('consoleBody');
+      const div = document.createElement('div');
+      div.className = 'log-line';
+      div.innerHTML = `<span class="log-time">${time}</span><span class="log-msg ${level}">${escHtml(msg)}</span>`;
+      body.appendChild(div);
+      body.scrollTop = body.scrollHeight;
+    }
+
+    function clearLog() {
+      document.getElementById('consoleBody').innerHTML = '';
+    }
+
+    // ═══════════════════════════════════════════
+    //  STATUS POLLING
+    // ═══════════════════════════════════════════
+    async function pollStatus() {
+      try {
+        const d = await api('/api/status');
+        isRunning = d.is_running;
+        updateStatusUI(isRunning);
+      } catch (e) { }
+      setTimeout(pollStatus, 3000);
+    }
+
+    function updateStatusUI(running) {
+      const dot = document.getElementById('statusDot');
+      const txt = document.getElementById('statusText');
+      const btn = document.getElementById('postNowBtn');
+      const stop = document.getElementById('stopBtn');
+      const prog = document.getElementById('progressWrap');
+
+      if (running) {
+        dot.className = 'status-dot running';
+        txt.textContent = 'Đang đăng…';
+        btn.disabled = true;
+        stop.disabled = false;
+        prog.style.display = 'block';
+        document.getElementById('progressBar').style.width = '100%';
+      } else {
+        dot.className = 'status-dot idle';
+        txt.textContent = 'Sẵn sàng';
+        btn.disabled = false;
+        stop.disabled = true;
+        prog.style.display = 'none';
+      }
+    }
+
+    // ═══════════════════════════════════════════
+    //  NAV / TABS
+    // ═══════════════════════════════════════════
+    function switchTab(name, el) {
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      el.classList.add('active');
+
+      if (name === 'schedule') loadScheduledJobs();
+      if (name === 'history') loadHistory();
+    }
+
+    // ═══════════════════════════════════════════
+    //  GROUPS — load / render / add / delete
+    // ═══════════════════════════════════════════
+    async function loadGroups() {
+      groups = await api('/api/groups');
+      document.getElementById('groupBadge').textContent = groups.length;
+    }
+
+    // Helper: list of unique categories (preserving order)
+    function getCategories() {
+      const seen = new Set();
+      const cats = [];
+      groups.forEach(g => {
+        const c = (g.category || '').trim() || 'Chưa phân nhóm';
+        if (!seen.has(c)) { seen.add(c); cats.push(c); }
+      });
+      return cats;
+    }
+
+    function renderGroups() {
+      const q = document.getElementById('searchGroup')?.value.toLowerCase() || '';
+      const el = document.getElementById('groupsList');
+
+      const filtered = groups
+        .map((g, i) => ({ g, i }))
+        .filter(({ g }) => g.name.toLowerCase().includes(q) || g.url.toLowerCase().includes(q));
+
+      if (!filtered.length) {
+        el.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><p>Chưa có group nào. Nhấn "+ Thêm group" để bắt đầu.</p></div>`;
+        return;
+      }
+
+      // Group by category
+      const byCategory = {};
+      filtered.forEach(({ g, i }) => {
+        const cat = (g.category || '').trim() || 'Chưa phân nhóm';
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push({ g, i });
+      });
+
+      el.innerHTML = Object.entries(byCategory).map(([cat, items]) => {
+        const rows = items.map(({ g, i }) => `
+      <div class="list-row">
+        <div style="flex:1;min-width:0">
+          <div class="list-row-name">${escHtml(g.name)}</div>
+        </div>
+        <div class="list-row-url">${escHtml(g.url)}</div>
+        <a href="${escHtml(g.url)}" target="_blank" class="btn btn-ghost btn-sm" title="Mở link">🔗</a>
+        <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="deleteGroup(${i})">🗑️</button>
+      </div>`).join('');
+        return `
+      <div class="cat-section" data-cat="${escHtml(cat)}">
+        <div class="cat-header" onclick="toggleCat(this.parentElement)">
+          <span class="cat-label">📁 ${escHtml(cat)}</span>
+          <span class="cat-count">${items.length} group</span>
+          <button class="cat-sel-btn" onclick="event.stopPropagation();selectCatGroups('${escHtml(cat)}')">☑ Chọn nhóm</button>
+          <span class="cat-chevron">▾</span>
+        </div>
+        <div class="cat-body" style="max-height:2000px">
+          ${rows}
+        </div>
+      </div>`;
+      }).join('');
+    }
+
+    function toggleCat(section) {
+      section.classList.toggle('collapsed');
+      const body = section.querySelector('.cat-body');
+      if (section.classList.contains('collapsed')) {
+        body.style.maxHeight = '0';
+      } else {
+        body.style.maxHeight = '2000px';
+      }
+    }
+
+    function expandAllCats() {
+      document.querySelectorAll('.cat-section').forEach(s => {
+        s.classList.remove('collapsed');
+        s.querySelector('.cat-body').style.maxHeight = '2000px';
+      });
+    }
+
+    function collapseAllCats() {
+      document.querySelectorAll('.cat-section').forEach(s => {
+        s.classList.add('collapsed');
+        s.querySelector('.cat-body').style.maxHeight = '0';
+      });
+    }
+
+    function selectCatGroups(cat) {
+      groups.forEach((g, i) => {
+        const c = (g.category || '').trim() || 'Chưa phân nhóm';
+        if (c === cat) selGroups.add(i);
+      });
+      renderGroupChips();
+      addLog('--:--:--', `☑ Đã chọn tất cả group nhóm "${cat}"`, 'info');
+    }
+
+    function renderGroupChips() {
+      const el = document.getElementById('groupChips');
+      if (!groups.length) {
+        el.innerHTML = `<span style="color:var(--text3);font-size:12px">Chưa có group. Thêm ở tab 👥</span>`;
+        updateSelCount();
+        return;
+      }
+
+      // Group chips by category
+      const byCategory = {};
+      groups.forEach((g, i) => {
+        const cat = (g.category || '').trim() || 'Chưa phân nhóm';
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push({ g, i });
+      });
+
+      el.innerHTML = Object.entries(byCategory).map(([cat, items]) => {
+        const chips = items.map(({ g, i }) =>
+          `<div class="group-chip ${selGroups.has(i) ? 'selected' : ''}" onclick="toggleGroup(${i})" title="${escHtml(g.url)}">
+        ${escHtml(g.name)}
+      </div>`
+        ).join('');
+        return `
+      <div class="chip-cat-label">
+        📁 ${escHtml(cat)}
+        <button class="chip-cat-sel-btn" onclick="selectCatGroups('${escHtml(cat)}')" title="Chọn cả nhóm">☑ Tất cả</button>
+      </div>
+      ${chips}
+    `;
+      }).join('');
+
+      updateSelCount();
+    }
+
+    function toggleGroup(i) {
+      if (selGroups.has(i)) selGroups.delete(i);
+      else selGroups.add(i);
+      renderGroupChips();
+    }
+
+    function selectAllGroups() {
+      groups.forEach((_, i) => selGroups.add(i));
+      renderGroupChips();
+    }
+
+    function clearGroupSel() {
+      selGroups.clear();
+      renderGroupChips();
+    }
+
+    function updateSelCount() {
+      const n = selGroups.size;
+      document.getElementById('selCount').textContent =
+        n === 0 ? 'Chưa chọn group nào' : `Đã chọn ${n} group`;
+    }
+
+    function openAddGroupModal() { openModal('modalAddGroup') }
+
+    async function addGroup() {
+      const name = document.getElementById('newGroupName').value.trim();
+      const url = document.getElementById('newGroupUrl').value.trim();
+      const cat = document.getElementById('newGroupCat').value.trim();
+
+      if (!name || !url) { alert('Vui lòng điền tên và URL group!'); return; }
+      if (!url.includes('facebook.com/groups/')) {
+        if (!confirm('URL này có vẻ không phải group Facebook. Vẫn thêm?')) return;
+      }
+
+      groups.push({ name, url, category: cat });
+      await api('/api/groups', { method: 'POST', body: JSON.stringify(groups) });
+      document.getElementById('groupBadge').textContent = groups.length;
+      ['newGroupName', 'newGroupUrl', 'newGroupCat'].forEach(id => document.getElementById(id).value = '');
+      closeModal('modalAddGroup');
+      renderGroups();
+      renderGroupChips();
+    }
+
+    async function deleteGroup(idx) {
+      if (!confirm(`Xóa group "${groups[idx].name}"?`)) return;
+      selGroups.delete(idx);
+      // Rebuild selGroups with shifted indices
+      const newSel = new Set();
+      selGroups.forEach(i => { if (i < idx) newSel.add(i); else if (i > idx) newSel.add(i - 1); });
+      selGroups.clear();
+      newSel.forEach(i => selGroups.add(i));
+
+      await api(`/api/groups/${idx}`, { method: 'DELETE' });
+      await loadGroups();
+      renderGroups();
+      renderGroupChips();
+    }
+
+    function openImportModal() {
+      openModal('modalImport');
+      // Populate existing category options in each row
+      const container = document.getElementById('bulkRows');
+      if (!container.children.length) {
+        // Start with 3 empty rows
+        container.innerHTML = '';
+        addBulkRow(); addBulkRow(); addBulkRow();
+      }
+    }
+
+    function getCategoryOptions(selected) {
+      const cats = getCategories().filter(c => c !== 'Chưa phân nhóm');
+      const options = cats.map(c =>
+        `<option value="${escHtml(c)}" ${c === selected ? 'selected' : ''}>${escHtml(c)}</option>`
+      ).join('');
+      return `<option value="">-- Chọn hoặc nhập mới --</option>${options}`;
+    }
+
+    function addBulkRow(name = '', url = '', cat = '') {
+      const container = document.getElementById('bulkRows');
+      const div = document.createElement('div');
+      div.className = 'bulk-row';
+      div.innerHTML = `
+    <input type="text" placeholder="Tên group" value="${escHtml(name)}" class="br-name" />
+    <input type="url" placeholder="https://facebook.com/groups/..." value="${escHtml(url)}" class="br-url" />
+    <input type="text" placeholder="Tag (IT, Kế toán...)" value="${escHtml(cat)}" class="br-cat" list="catSuggestions" />
+    <button class="bulk-row-del" onclick="this.closest('.bulk-row').remove()" title="Xóa dòng">✕</button>
+  `;
+      container.appendChild(div);
+      // Ensure datalist exists
+      if (!document.getElementById('catSuggestions')) {
+        const dl = document.createElement('datalist');
+        dl.id = 'catSuggestions';
+        document.body.appendChild(dl);
+      }
+      // Update suggestions
+      const dl = document.getElementById('catSuggestions');
+      const existing = getCategories().filter(c => c !== 'Chưa phân nhóm');
+      dl.innerHTML = existing.map(c => `<option value="${escHtml(c)}"></option>`).join('');
+    }
+
+    async function importGroups() {
+      const rows = document.querySelectorAll('#bulkRows .bulk-row');
+      let added = 0;
+      rows.forEach(row => {
+        const name = row.querySelector('.br-name').value.trim();
+        const url = row.querySelector('.br-url').value.trim();
+        const cat = row.querySelector('.br-cat').value.trim();
+        if (name && url) {
+          groups.push({ name, url, category: cat });
+          added++;
+        }
+      });
+      if (added) {
+        await api('/api/groups', { method: 'POST', body: JSON.stringify(groups) });
+        document.getElementById('groupBadge').textContent = groups.length;
+        addLog('--:--:--', `✅ Đã thêm ${added} group thành công.`, 'success');
+      }
+      // Reset bulk rows
+      document.getElementById('bulkRows').innerHTML = '';
+      addBulkRow(); addBulkRow(); addBulkRow();
+      closeModal('modalImport');
+      renderGroups();
+      renderGroupChips();
+    }
+
+    // ═══════════════════════════════════════════
+    //  TEMPLATES
+    // ═══════════════════════════════════════════
+    async function loadTemplates() {
+      templates = await api('/api/templates');
+      const sel = document.getElementById('templateSelect');
+      sel.innerHTML = '<option value="">📄 Chọn template…</option>' +
+        templates.map((t, i) => `<option value="${i}">${escHtml(t.name)}</option>`).join('');
+    }
+
+    function loadTemplate() {
+      const i = document.getElementById('templateSelect').value;
+      if (i === '') return;
+      const editor = document.getElementById('postContent');
+      if (templates[i].html_content) {
+        editor.innerHTML = templates[i].html_content;
+      } else {
+        const content = templates[i].content || '';
+        editor.innerHTML = content.replace(/\n/g, '<br>');
+      }
+      updateCharCount();
+    }
+
+    function saveAsTemplate() { openModal('modalSaveTemplate') }
+
+    async function confirmSaveTemplate() {
+      const name = document.getElementById('templateName').value.trim();
+      const content = getEditorPlainText().trim();
+      const htmlContent = document.getElementById('postContent').innerHTML;
+      if (!name || !content) { alert('Cần điền tên và nội dung!'); return; }
+      templates.push({ name, content, html_content: htmlContent, created: new Date().toISOString() });
+      await api('/api/templates', { method: 'POST', body: JSON.stringify(templates) });
+      document.getElementById('templateName').value = '';
+      closeModal('modalSaveTemplate');
+      await loadTemplates();
+      addLog('--:--:--', `💾 Đã lưu template "${name}"`, 'success');
+    }
+
+    // ═══════════════════════════════════════════
+    //  RICH TEXT EDITOR
+    // ═══════════════════════════════════════════
+    function rteFormat(cmd) {
+      document.getElementById('postContent').focus();
+      document.execCommand(cmd, false, null);
+      updateToolbarState();
+      updateCharCount();
+    }
+
+    function updateToolbarState() {
+      ['bold', 'italic', 'underline'].forEach(cmd => {
+        const btn = document.querySelector(`.rte-btn[data-cmd="${cmd}"]`);
+        if (btn) btn.classList.toggle('active', document.queryCommandState(cmd));
+      });
+    }
+
+    function getEditorPlainText() {
+      const editor = document.getElementById('postContent');
+      // Convert <br> and block elements to newlines, then strip remaining HTML
+      let html = editor.innerHTML;
+      html = html.replace(/<br\s*\/?>/gi, '\n');
+      html = html.replace(/<\/p>/gi, '\n');
+      html = html.replace(/<\/div>/gi, '\n');
+      html = html.replace(/<[^>]+>/g, '');
+      // Decode HTML entities
+      const tmp = document.createElement('textarea');
+      tmp.innerHTML = html;
+      return tmp.value.replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    function updateCharCount() {
+      const txt = getEditorPlainText();
+      document.getElementById('charCount').textContent = txt.length + ' ký tự';
+    }
+
+    // Setup rich editor events
+    (function setupRTE() {
+      const editor = document.getElementById('postContent');
+      if (!editor) return;
+
+      // Keyboard shortcuts
+      editor.addEventListener('keydown', e => {
+        if (e.ctrlKey || e.metaKey) {
+          if (e.key === 'b' || e.key === 'B') {
+            e.preventDefault();
+            rteFormat('bold');
+          } else if (e.key === 'i' || e.key === 'I') {
+            e.preventDefault();
+            rteFormat('italic');
+          } else if (e.key === 'u' || e.key === 'U') {
+            e.preventDefault();
+            rteFormat('underline');
+          }
+        }
+      });
+
+      // Update toolbar state on selection change
+      editor.addEventListener('keyup', updateToolbarState);
+      editor.addEventListener('mouseup', updateToolbarState);
+      editor.addEventListener('input', () => {
+        updateCharCount();
+        updateToolbarState();
+      });
+
+      // Show format hint when formatting is active
+      document.addEventListener('selectionchange', () => {
+        const sel = window.getSelection();
+        if (sel && sel.toString().length > 0) {
+          const isBold = document.queryCommandState('bold');
+          const isItalic = document.queryCommandState('italic');
+          const isUnder = document.queryCommandState('underline');
+          let hints = [];
+          if (isBold) hints.push('Đậm');
+          if (isItalic) hints.push('Nghiêng');
+          if (isUnder) hints.push('Gạch chân');
+          document.getElementById('formatHint').textContent =
+            hints.length ? '● ' + hints.join(' + ') : '';
+        } else {
+          document.getElementById('formatHint').textContent = '';
+        }
+        updateToolbarState();
+      });
+    })();
+
+
+
+    // ═══════════════════════════════════════════
+    //  POST NOW
+    // ═══════════════════════════════════════════
+    async function postNow() {
+      const content = getEditorPlainText();
+      const htmlContent = document.getElementById('postContent').innerHTML;
+      if (!content) { alert('Nội dung không được để trống!'); return; }
+      if (selGroups.size === 0) { alert('Chưa chọn group nào!'); return; }
+
+      const selectedGroups = [...selGroups].map(i => groups[i]);
+      const minDelay = parseInt(document.getElementById('minDelay').value) * 60;
+      const maxDelay = parseInt(document.getElementById('maxDelay').value) * 60;
+
+      const r = await api('/api/post', {
+        method: 'POST',
+        body: JSON.stringify({
+          content,
+          html_content: htmlContent,
+          groups: selectedGroups,
+          min_delay: minDelay,
+          max_delay: maxDelay
+        })
+      });
+
+      if (r.status === 'ok') {
+        isRunning = true;
+        updateStatusUI(true);
+        addLog(nowTime(), `🚀 Bắt đầu đăng lên ${selectedGroups.length} group...`, 'info');
+      } else {
+        alert('Lỗi: ' + r.message);
+      }
+    }
+
+    // ═══════════════════════════════════════════
+    //  SCHEDULE
+    // ═══════════════════════════════════════════
+    function openScheduleModal() {
+      const content = getEditorPlainText();
+      if (!content) { alert('Soạn nội dung trước!'); return; }
+      if (selGroups.size === 0) { alert('Chưa chọn group nào!'); return; }
+      openModal('modalSchedule');
+    }
+
+    async function schedulePost() {
+      const content = getEditorPlainText();
+      const htmlContent = document.getElementById('postContent').innerHTML;
+      const runTime = document.getElementById('schedTime').value;
+      const minDelay = parseInt(document.getElementById('minDelay').value) * 60;
+      const maxDelay = parseInt(document.getElementById('maxDelay').value) * 60;
+      const selList = [...selGroups].map(i => groups[i]);
+
+      if (!runTime) { alert('Chọn thời gian!'); return; }
+
+      const r = await api('/api/schedule', {
+        method: 'POST',
+        body: JSON.stringify({
+          content,
+          html_content: htmlContent,
+          groups: selList,
+          run_time: runTime,
+          min_delay: minDelay,
+          max_delay: maxDelay
+        })
+      });
+
+      if (r.status === 'ok') {
+        const dt = new Date(runTime).toLocaleString('vi-VN');
+        addLog(nowTime(), `📅 Đã đặt lịch đăng vào ${dt}`, 'success');
+        closeModal('modalSchedule');
+        loadScheduledJobs();
+      } else {
+        alert('Lỗi: ' + r.message);
+      }
+    }
+
+    async function loadScheduledJobs() {
+      schedJobs = await api('/api/jobs');
+      const badge = document.getElementById('schedBadge');
+      const el = document.getElementById('schedList');
+
+      badge.style.display = schedJobs.length ? 'flex' : 'none';
+      badge.textContent = schedJobs.length;
+
+      if (!schedJobs.length) {
+        el.innerHTML = `<div class="empty-state"><div class="empty-icon">📅</div><p>Chưa có lịch đăng nào.</p></div>`;
+        return;
+      }
+
+      el.innerHTML = schedJobs.map(j => `
+    <div class="sched-card">
+      <span class="sched-time">⏰ ${j.next_run}</span>
+      <span class="sched-id">${j.id}</span>
+      <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="cancelJob('${j.id}')">🗑️ Hủy</button>
+    </div>
+  `).join('');
+    }
+
+    async function cancelJob(id) {
+      if (!confirm('Hủy lịch đăng này?')) return;
+      await api(`/api/jobs/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      addLog(nowTime(), '🗑️ Đã hủy lịch đăng.', 'warning');
+      loadScheduledJobs();
+    }
+
+    // ═══════════════════════════════════════════
+    //  STOP
+    // ═══════════════════════════════════════════
+    async function stopPosting() {
+      await api('/api/stop', { method: 'POST' });
+      addLog(nowTime(), '⏹️ Gửi lệnh dừng…', 'warning');
+    }
+
+    // ═══════════════════════════════════════════
+    //  HISTORY
+    // ═══════════════════════════════════════════
+    async function loadHistory() {
+      const hist = await api('/api/history');
+      const el = document.getElementById('histList');
+      if (!hist.length) {
+        el.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><p>Chưa có lịch sử đăng bài nào.</p></div>`;
+        return;
+      }
+      el.innerHTML = hist.map(h => `
+    <div class="hist-row">
+      <div class="hist-meta">📅 ${h.time}<br><span style="color:var(--accent2)">${h.groups} group</span></div>
+      <div class="hist-preview">${escHtml(h.preview)}</div>
+    </div>
+  `).join('');
+    }
+
+    // ═══════════════════════════════════════════
+    //  CONNECT FACEBOOK
+    // ═══════════════════════════════════════════
+    async function connectFacebook() {
+      addLog(nowTime(), '🔐 Đang mở trình duyệt để kết nối Facebook…', 'info');
+      await api('/api/connect-facebook', { method: 'POST' });
+    }
+
+    // ═══════════════════════════════════════════
+    //  MODAL HELPERS
+    // ═══════════════════════════════════════════
+    function openModal(id) { document.getElementById(id).classList.add('open') }
+    function closeModal(id) { document.getElementById(id).classList.remove('open') }
+
+    document.querySelectorAll('.modal-overlay').forEach(m => {
+      m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open') });
+    });
+
+    // ═══════════════════════════════════════════
+    //  UTILS
+    // ═══════════════════════════════════════════
+    function escHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+    function nowTime() {
+      return new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+  </script>
+</body>
+
+</html>
