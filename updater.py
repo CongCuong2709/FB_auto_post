@@ -12,8 +12,8 @@ import zipfile
 from pathlib import Path
 
 # ─── Cấu hình ────────────────────────────────────────────────────────────────
-GITHUB_OWNER = "CongCuong2709"   # <-- điền username GitHub của bạn
-GITHUB_REPO  = "FB_auto_post"         # <-- điền tên repo
+GITHUB_OWNER = "YOUR_GITHUB_USERNAME"   # <-- điền username GitHub của bạn
+GITHUB_REPO  = "YOUR_REPO_NAME"         # <-- điền tên repo
 
 BASE_DIR     = Path(__file__).parent.resolve()
 VERSION_FILE = BASE_DIR / "version.txt"
@@ -130,7 +130,11 @@ def main():
 
     # Khởi động app
     app_py = BASE_DIR / "app.py"
-    os.execv(str(PYTHON_EXE), [str(PYTHON_EXE), str(app_py)])
+    result = subprocess.run([str(PYTHON_EXE), str(app_py)], cwd=str(BASE_DIR))
+    if result.returncode != 0:
+        print(f"\n[!] App thoat voi ma loi: {result.returncode}")
+        input("Nhan Enter de dong...")
+
 
 
 if __name__ == "__main__":
