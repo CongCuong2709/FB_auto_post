@@ -58,5 +58,3 @@ htmlcov/
 *.whl
 *.tar.gz
 *.zip
-
-data/
