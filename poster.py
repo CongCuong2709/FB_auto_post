@@ -5,6 +5,13 @@ import os
 import queue
 from datetime import datetime
 
+# Trỏ Playwright tới thư mục browsers/ trong folder ứng dụng
+os.environ.setdefault(
+    "PLAYWRIGHT_BROWSERS_PATH",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "browsers"),
+)
+
+
 USER_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chrome_profile")
 
 

@@ -1,46 +1,74 @@
 @echo off
 chcp 65001 >nul
-title FB Auto Poster — Cài đặt
+title FB Auto Poster - Cai dat
+
 echo.
-echo  ╔══════════════════════════════════════╗
-echo  ║   FB Auto Poster — Cài đặt lần đầu  ║
-echo  ╚══════════════════════════════════════╝
+echo ============================================
+echo   FB Auto Poster - Cai dat lan dau
+echo ============================================
 echo.
 
-:: Check Python
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo  [LỖI] Chưa cài Python! Tải tại: https://python.org/downloads
-    echo  Nhớ tick "Add Python to PATH" khi cài!
+set "PYEXE=%~dp0python\python.exe"
+set "LIB=%~dp0lib"
+set "BROWSERS=%~dp0browsers"
+set "PLAYWRIGHT_BROWSERS_PATH=%BROWSERS%"
+
+:: Kiem tra Python noi bo
+if not exist "%PYEXE%" (
+    echo [LOI] Khong tim thay python\python.exe
+    echo Hay dam bao thu muc python\ da giai nen dung cho.
     pause
     exit /b 1
 )
 
-echo  [1/3] Cài thư viện Python...
-python -m pip install --upgrade pip -q
-python -m pip install -r requirements.txt -q
+:: Tao thu muc lib neu chua co
+if not exist "%LIB%" mkdir "%LIB%"
+
+:: --- Buoc 1: Cai pip vao lib\ ---
+echo [1/4] Cai pip...
+"%PYEXE%" -c "import urllib.request; urllib.request.urlretrieve('https://bootstrap.pypa.io/get-pip.py', r'%TEMP%\get-pip.py')"
 if errorlevel 1 (
-    echo  [LỖI] Cài thư viện thất bại!
+    echo [LOI] Khong tai duoc get-pip.py. Kiem tra ket noi mang.
+    pause
+    exit /b 1
+)
+:: Cai pip vao lib\ (pip se duoc tim thay nho ../lib trong _pth)
+"%PYEXE%" "%TEMP%\get-pip.py" --target "%LIB%" --no-warn-script-location -q
+if errorlevel 1 (
+    echo [LOI] Cai pip that bai!
     pause
     exit /b 1
 )
 
-echo  [2/3] Cài trình duyệt Chromium cho Playwright...
-python -m playwright install chromium
+:: --- Buoc 2: Cai thu vien (dung pip truc tiep tu lib\) ---
+echo [2/4] Cai thu vien Python vao lib\...
+"%PYEXE%" "%LIB%\pip\__main__.py" install -r "%~dp0requirements.txt" --target "%LIB%" --no-warn-script-location -q
 if errorlevel 1 (
-    echo  [LỖI] Cài Playwright thất bại!
+    echo [LOI] Cai thu vien that bai!
     pause
     exit /b 1
 )
 
-echo  [3/3] Tạo thư mục dữ liệu...
-if not exist "data" mkdir data
-if not exist "chrome_profile" mkdir chrome_profile
+:: --- Buoc 3: Cai Chromium ---
+echo [3/4] Tai trinh duyet Chromium vao browsers\...
+echo       (Lan dau co the mat 5-10 phut tuy mang)
+"%PYEXE%" "%LIB%\pip\__main__.py" install playwright --target "%LIB%" --no-warn-script-location -q
+"%PYEXE%" -m playwright install chromium
+if errorlevel 1 (
+    echo [LOI] Cai Playwright / Chromium that bai!
+    pause
+    exit /b 1
+)
+
+:: --- Buoc 4: Tao thu muc du lieu ---
+echo [4/4] Tao thu muc du lieu...
+if not exist "%~dp0data"           mkdir "%~dp0data"
+if not exist "%~dp0chrome_profile" mkdir "%~dp0chrome_profile"
 
 echo.
-echo  ╔══════════════════════════════════════╗
-echo  ║   ✅  Cài đặt hoàn tất!             ║
-echo  ║   Chạy start.bat để sử dụng         ║
-echo  ╚══════════════════════════════════════╝
+echo ============================================
+echo   Cai dat hoan tat!
+echo   Bam dup start.bat de su dung.
+echo ============================================
 echo.
 pause

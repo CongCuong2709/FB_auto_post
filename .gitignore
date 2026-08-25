@@ -33,6 +33,18 @@ ENV/
 # Chrome profile (chứa dữ liệu đăng nhập, không nên commit)
 chrome_profile/
 
+# Folder data
+data/
+
+# Bản portable — Python nội bộ, thư viện, trình duyệt (nặng, tạo lại bằng install.bat)
+python/
+lib/
+browsers/
+
+# Script và file release (chỉ dùng khi build, không cần commit)
+make_release.bat
+*.zip
+
 # IDE
 .vscode/
 .idea/
@@ -58,3 +70,6 @@ htmlcov/
 *.whl
 *.tar.gz
 *.zip
+
+# Python embedded
+python/
