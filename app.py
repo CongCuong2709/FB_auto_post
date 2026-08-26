@@ -5,11 +5,16 @@ import threading
 import webbrowser
 from datetime import datetime
 
+import openpyxl
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 from apscheduler.executors.pool import ThreadPoolExecutor as APThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request, send_file
 
 from poster import FacebookPoster
+from crawler.fb_crawler import DEFAULT_JOBSEEKER_KEYWORDS, FBCrawler
+from crawler.deduplicator import deduplicate_posts
 
 # ─── App setup ────────────────────────────────────────────────────────────────
 app = Flask(__name__)
@@ -26,6 +31,26 @@ poster    = FacebookPoster(log_queue)
 
 scheduler = BackgroundScheduler(executors={"default": APThreadPoolExecutor(1)})
 scheduler.start()
+
+# ─── Crawl Posts state ───────────────────────────────────────────────────────
+_crawl_state: dict = {
+    "running": False,
+    "done": False,
+    "progress": 0,
+    "total": 0,
+    "current_group": "",
+    "current_keyword": "",
+    "raw_count": 0,
+    "results": [],
+    "error": None,
+}
+_crawl_lock  = threading.Lock()
+_crawl_stop  = threading.Event()
+
+
+def _cset(**kwargs):
+    with _crawl_lock:
+        _crawl_state.update(kwargs)
 
 # ─── JSON helpers ─────────────────────────────────────────────────────────────
 def load_json(path, default):
@@ -188,6 +213,196 @@ def status():
 @app.route("/api/history", methods=["GET"])
 def history():
     return jsonify(load_json(HISTORY_F, []))
+
+# ─── Crawl Posts routes ───────────────────────────────────────────────────────
+
+@app.route("/api/crawl-posts", methods=["POST"])
+def crawl_posts_start():
+    with _crawl_lock:
+        if _crawl_state["running"]:
+            return jsonify({"error": "Đang crawl, vui lòng đợi…"}), 409
+
+    data      = request.get_json(force=True)
+    raw_groups = data.get("groups", [])
+    groups    = []
+    for g in raw_groups:
+        if isinstance(g, dict):
+            if g.get("id") or g.get("url"):
+                groups.append(g)
+        elif isinstance(g, str) and g.strip():
+            groups.append(g.strip())
+
+    extra_kws = [k.strip() for k in data.get("extra_keywords", []) if isinstance(k, str) and k.strip()]
+
+    if not groups:
+        return jsonify({"error": "Vui lòng chọn ít nhất 1 Group"}), 400
+
+    # Gộp từ khoá mặc định + từ khoá người dùng thêm
+    seen_kw: set[str] = set()
+    keywords: list[str] = []
+    for kw in DEFAULT_JOBSEEKER_KEYWORDS + extra_kws:
+        lk = kw.lower()
+        if lk not in seen_kw:
+            seen_kw.add(lk)
+            keywords.append(kw)
+
+    total = len(groups) * len(keywords)
+    _crawl_stop.clear()
+    _cset(
+        running=True, done=False, progress=0, total=total,
+        current_group="", current_keyword="",
+        raw_count=0, results=[], error=None,
+    )
+
+    t = threading.Thread(
+        target=_run_crawl_posts,
+        args=(groups, keywords),
+        daemon=True,
+    )
+    t.start()
+    return jsonify({"status": "started", "total": total, "keywords": keywords})
+
+
+def _run_crawl_posts(groups, keywords):
+    crawler = None
+    try:
+        print("[crawl-posts] Đang khởi động Chrome...")
+        crawler = FBCrawler(stop_event=_crawl_stop)
+        print("[crawl-posts] Chrome đã mở!")
+        all_posts: list[dict] = []
+
+        for group in groups:
+            if isinstance(group, dict):
+                g_id = group.get("id", "").strip()
+                g_name = group.get("name", g_id)
+            else:
+                g_id = str(group).strip()
+                g_name = g_id
+
+            if not g_id:
+                continue
+
+            for kw in keywords:
+                if _crawl_stop.is_set():
+                    break
+                _cset(current_group=g_name or g_id, current_keyword=kw)
+                print(f"[crawl-posts] Tìm: group={g_name!r} ({g_id}), keyword={kw!r}")
+                try:
+                    posts = crawler.search_group(g_id, kw, group_name=g_name)
+                    print(f"[crawl-posts] Tìm thấy {len(posts)} bài")
+                    all_posts.extend(posts)
+                except RuntimeError as e:
+                    print(f"[crawl-posts] RuntimeError: {e}")
+                    _cset(running=False, done=True, error="Session hết hạn. Vui lòng kết nối lại Facebook.")
+                    return
+                except Exception as exc:
+                    print(f"[crawl-posts] Bỏ qua lỗi: {exc}")
+                finally:
+                    with _crawl_lock:
+                        _crawl_state["progress"] += 1
+                        _crawl_state["raw_count"] = len(all_posts)
+            if _crawl_stop.is_set():
+                break
+
+        unique = deduplicate_posts(all_posts)
+        clean  = [{k: v for k, v in p.items() if k != "date_obj"} for p in unique]
+        print(f"[crawl-posts] Xong: {len(all_posts)} bài thô → {len(unique)} sau dedup")
+        _cset(running=False, done=True, results=clean)
+
+        log_queue.put({
+            "type": "crawl_done",
+            "result_count": len(unique),
+            "time": datetime.now().strftime("%H:%M:%S")
+        })
+
+    except Exception as exc:
+        print(f"[crawl-posts] LỖI: {exc}")
+        import traceback; traceback.print_exc()
+        _cset(running=False, done=True, error=str(exc))
+    finally:
+        if crawler:
+            try:
+                crawler.dump_debug()
+            except Exception as e:
+                print(f"[crawl-posts] Không ghi debug: {e}")
+            crawler.close()
+
+
+@app.route("/api/crawl-posts/status")
+def crawl_posts_status():
+    with _crawl_lock:
+        snap = {k: v for k, v in _crawl_state.items() if k != "results"}
+        snap["result_count"] = len(_crawl_state["results"])
+    return jsonify(snap)
+
+
+@app.route("/api/crawl-posts/results")
+def crawl_posts_results():
+    page = max(1, int(request.args.get("page", 1)))
+    per  = max(1, min(int(request.args.get("per_page", 25)), 100))
+    with _crawl_lock:
+        all_r = list(_crawl_state["results"])
+    start = (page - 1) * per
+    return jsonify({
+        "total": len(all_r), "page": page, "per_page": per,
+        "items": all_r[start: start + per],
+    })
+
+
+@app.route("/api/crawl-posts/stop", methods=["POST"])
+def crawl_posts_stop():
+    _crawl_stop.set()
+    return jsonify({"status": "stopping"})
+
+
+@app.route("/api/crawl-posts/export")
+def crawl_posts_export():
+    with _crawl_lock:
+        results = list(_crawl_state["results"])
+    if not results:
+        return jsonify({"error": "Không có kết quả để xuất"}), 400
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Người tìm việc"
+
+    headers = ["STT", "Tên", "Nội dung bài viết", "Group", "Link bài"]
+    ws.append(headers)
+
+    hdr_font  = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
+    hdr_fill  = PatternFill(start_color="0F172A", end_color="0F172A", fill_type="solid")
+    hdr_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    for cell in ws[1]:
+        cell.font = hdr_font; cell.fill = hdr_fill; cell.alignment = hdr_align
+
+    even_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+    wrap_top  = Alignment(vertical="top", wrap_text=True)
+
+    for idx, post in enumerate(results, 1):
+        ws.append([idx, post.get("author", ""), post.get("content", ""),
+                   post.get("group_name", post.get("group_id", "")), post.get("url", "")])
+        for cell in ws[idx + 1]:
+            cell.alignment = wrap_top
+            if idx % 2 == 0:
+                cell.fill = even_fill
+
+    for ci, w in enumerate([6, 28, 85, 28, 60], 1):
+        ws.column_dimensions[get_column_letter(ci)].width = w
+    ws.row_dimensions[1].height = 28
+    for r in range(2, len(results) + 2):
+        ws.row_dimensions[r].height = 90
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = ws.dimensions
+
+    os.makedirs("data", exist_ok=True)
+    ts    = datetime.now().strftime("%Y%m%d_%H%M%S")
+    fname = f"nguoi_tim_viec_{ts}.xlsx"
+    fpath = os.path.join("data", fname)
+    wb.save(fpath)
+
+    return send_file(fpath, as_attachment=True, download_name=fname,
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":

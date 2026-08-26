@@ -73,3 +73,5 @@ htmlcov/
 
 # Python embedded
 python/
+
+debug/

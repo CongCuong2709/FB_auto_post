@@ -213,8 +213,8 @@ class FacebookPoster:
                 try:
                     btn = page.locator(sel).last
                     if btn.is_visible(timeout=2_000) and btn.is_enabled():
-                        btn.click()
-                        submitted = True
+                        # btn.click()
+                        # submitted = True
                         break
                 except Exception:
                     continue

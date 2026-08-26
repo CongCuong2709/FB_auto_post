@@ -1200,6 +1200,183 @@
       text-overflow: ellipsis;
       white-space: nowrap
     }
+
+    /* ═══════════════════════════════════════════════
+   PAGE: CRAWL POSTS
+═══════════════════════════════════════════════ */
+    .crawl-grid {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    @media(max-width:900px) { .crawl-grid { grid-template-columns: 1fr } }
+
+    .crawl-stat-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .crawl-stat {
+      flex: 1;
+      min-width: 120px;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      text-align: center;
+    }
+    .crawl-stat-val {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--accent2);
+      line-height: 1;
+    }
+    .crawl-stat-lbl {
+      font-size: 10px;
+      color: var(--text3);
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    /* Results table */
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .result-table th {
+      background: var(--surface2);
+      color: var(--text3);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border2);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .result-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .result-table tr:hover td {
+      background: rgba(99,102,241,.06);
+    }
+    .result-author {
+      font-weight: 600;
+      white-space: nowrap;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .result-content {
+      max-width: 360px;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      color: var(--text2);
+      line-height: 1.5;
+    }
+    .result-link {
+      color: var(--info);
+      font-size: 11px;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .result-link:hover { text-decoration: underline; }
+
+    .kw-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 99px;
+      background: var(--accent-glow);
+      border: 1px solid rgba(99,102,241,.35);
+      font-size: 12px;
+      color: var(--accent2);
+      margin: 2px;
+    }
+    .kw-tag .kw-rm {
+      cursor: pointer;
+      color: var(--text3);
+      font-size: 14px;
+      line-height: 1;
+      padding: 0 1px;
+    }
+    .kw-tag .kw-rm:hover { color: var(--error) }
+
+    .kw-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      min-height: 32px;
+      padding: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-sm);
+      margin-top: 4px;
+      cursor: text;
+    }
+    .kw-input {
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+      min-width: 140px;
+      flex: 1;
+      font-family: inherit;
+    }
+
+    /* Crawl group chips */
+    .crawl-group-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-height: 40px;
+      padding: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius-sm);
+      margin-top: 6px;
+    }
+
+    .pagination {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      justify-content: flex-end;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .page-btn {
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border2);
+      background: var(--surface2);
+      color: var(--text2);
+      font-size: 12px;
+      cursor: pointer;
+      transition: var(--trans);
+    }
+    .page-btn:hover, .page-btn.active {
+      border-color: var(--accent);
+      color: var(--accent2);
+      background: var(--accent-glow);
+    }
+    .page-btn:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 
@@ -1242,6 +1419,10 @@
       </button>
       <button class="nav-btn" data-tab="history" onclick="switchTab('history',this)">
         <span class="icon">📋</span> Lịch sử
+      </button>
+      <button class="nav-btn" data-tab="crawl" onclick="switchTab('crawl',this)">
+        <span class="icon">🔍</span> Crawl Posts
+        <span class="nav-badge" id="crawlBadge" style="display:none">0</span>
       </button>
       <div style="flex:1"></div>
       <button class="nav-btn" style="color:var(--error)" onclick="stopPosting()" id="stopBtn" disabled>
@@ -1397,6 +1578,129 @@
         </div>
       </div>
 
+      <!-- ── TAB: CRAWL POSTS ─────────────────── -->
+      <div class="tab-panel" id="tab-crawl">
+        <div class="crawl-grid">
+
+          <!-- Left: Config -->
+          <div>
+            <!-- Group selector -->
+            <div class="card">
+              <div class="card-title">👥 Chọn Groups để crawl</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <span class="sel-count" id="crawlSelCount">Chưa chọn group nào</span>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn-ghost btn-sm" onclick="crawlSelectAll()">Tất cả</button>
+                  <button class="btn btn-ghost btn-sm" onclick="crawlClearSel()">Bỏ chọn</button>
+                </div>
+              </div>
+              <div class="crawl-group-chips" id="crawlGroupChips">
+                <span style="color:var(--text3);font-size:12px">Chưa có group. Thêm ở tab 👥</span>
+              </div>
+            </div>
+
+            <!-- Keywords -->
+            <div class="card">
+              <div class="card-title">🔑 Từ khoá tìm kiếm</div>
+              <p style="font-size:11px;color:var(--text3);margin-bottom:8px">
+                Mặc định: <span style="color:var(--accent2)">Tìm việc làm</span>. Nhập thêm rồi Enter để thêm từ khoá.
+              </p>
+              <div class="kw-wrap" id="kwWrap" onclick="document.getElementById('kwInput').focus()">
+                <input class="kw-input" id="kwInput" placeholder="Nhập từ khoá rồi nhấn Enter…"
+                  onkeydown="crawlKwKeydown(event)" />
+              </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="card">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <button class="btn btn-primary" id="crawlStartBtn" onclick="crawlStart()"
+                  style="justify-content:center;padding:12px">
+                  <span>🔍</span> Bắt đầu Crawl
+                </button>
+                <button class="btn btn-danger" id="crawlStopBtn" onclick="crawlStop()" disabled
+                  style="justify-content:center">
+                  <span>⏹</span> Dừng Crawl
+                </button>
+              </div>
+
+              <!-- Progress -->
+              <div id="crawlProgressWrap" style="margin-top:14px;display:none">
+                <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:6px">
+                  <span id="crawlStatusText">Chuẩn bị...</span>
+                  <span id="crawlProgressLabel">0 / 0</span>
+                </div>
+                <div class="progress-wrap">
+                  <div class="progress-bar" id="crawlProgressBar"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Results -->
+          <div>
+            <div class="card">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+                <div class="card-title" style="margin-bottom:0">📊 Kết quả</div>
+                <div style="margin-left:auto;display:flex;gap:8px">
+                  <button class="btn btn-ghost btn-sm" id="crawlExportBtn" onclick="crawlExport()" disabled>
+                    📥 Export Excel
+                  </button>
+                </div>
+              </div>
+
+              <!-- Stats row -->
+              <div class="crawl-stat-row">
+                <div class="crawl-stat">
+                  <div class="crawl-stat-val" id="statRaw">0</div>
+                  <div class="crawl-stat-lbl">Bài thô</div>
+                </div>
+                <div class="crawl-stat">
+                  <div class="crawl-stat-val" id="statUnique">0</div>
+                  <div class="crawl-stat-lbl">Sau dedup</div>
+                </div>
+                <div class="crawl-stat">
+                  <div class="crawl-stat-val" id="statGroups">0</div>
+                  <div class="crawl-stat-lbl">Groups</div>
+                </div>
+              </div>
+
+              <!-- Table -->
+              <div style="overflow-x:auto">
+                <table class="result-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Tên</th>
+                      <th>Nội dung</th>
+                      <th>Group</th>
+                      <th>Link</th>
+                    </tr>
+                  </thead>
+                  <tbody id="crawlResultBody">
+                    <tr><td colspan="5">
+                      <div class="empty-state">
+                        <div class="empty-icon">🔍</div>
+                        <p>Nhấn "Bắt đầu Crawl" để tìm kiếm bài viết</p>
+                      </div>
+                    </td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Pagination -->
+              <div class="pagination" id="crawlPagination"></div>
+
+              <!-- Error box -->
+              <div id="crawlError" style="display:none;margin-top:10px;padding:10px 14px;
+                background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);
+                border-radius:var(--radius-sm);color:var(--error);font-size:12px"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
     </main>
 
     <!-- ══════════════════════════════════════════
@@ -1526,8 +1830,10 @@
       await Promise.all([loadGroups(), loadTemplates()]);
       renderGroupChips();
       renderGroups();
+      renderCrawlGroupChips();
       loadHistory();
       loadScheduledJobs();
+      loadCrawlState();
       startSSE();
       pollStatus();
       // Set default schedule time to 1 hour from now
@@ -1557,6 +1863,9 @@
         const d = JSON.parse(e.data);
         if (d.type === 'ping') return;
         if (d.type === 'log') addLog(d.time, d.message, d.level);
+        if (d.type === 'crawl_done') {
+          loadCrawlState();
+        }
         if (d.type === 'done') {
           isRunning = false;
           updateStatusUI(false);
@@ -1625,6 +1934,7 @@
 
       if (name === 'schedule') loadScheduledJobs();
       if (name === 'history') loadHistory();
+      if (name === 'crawl') loadCrawlState();
     }
 
     // ═══════════════════════════════════════════
@@ -1800,6 +2110,7 @@
       closeModal('modalAddGroup');
       renderGroups();
       renderGroupChips();
+      renderCrawlGroupChips();
     }
 
     async function deleteGroup(idx) {
@@ -1815,6 +2126,7 @@
       await loadGroups();
       renderGroups();
       renderGroupChips();
+      renderCrawlGroupChips();
     }
 
     function openImportModal() {
@@ -1882,6 +2194,7 @@
       closeModal('modalImport');
       renderGroups();
       renderGroupChips();
+      renderCrawlGroupChips();
     }
 
     // ═══════════════════════════════════════════
@@ -2169,6 +2482,254 @@
     }
     function nowTime() {
       return new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    // ═══════════════════════════════════════════
+    //  CRAWL POSTS
+    // ═══════════════════════════════════════════
+    let _crawlSelectedGroups = new Set();
+    let _crawlExtraKw = [];
+    let _crawlPollTimer = null;
+    let _crawlPage = 1;
+    const _crawlPerPage = 25;
+
+    // Render group chips for crawl tab (called after groups load)
+    function renderCrawlGroupChips() {
+      const wrap = document.getElementById('crawlGroupChips');
+      if (!groups.length) {
+        wrap.innerHTML = `<span style="color:var(--text3);font-size:12px">Chưa có group. Thêm ở tab 👥</span>`;
+        return;
+      }
+      wrap.innerHTML = groups.map((g, i) => {
+        const sel = _crawlSelectedGroups.has(i);
+        return `<span class="group-chip ${sel ? 'selected' : ''}" onclick="crawlToggleGroup(${i})"
+          title="${escHtml(g.url || '')}">${escHtml(g.name)}</span>`;
+      }).join('');
+      _updateCrawlSelCount();
+    }
+
+    function crawlToggleGroup(i) {
+      if (_crawlSelectedGroups.has(i)) _crawlSelectedGroups.delete(i);
+      else _crawlSelectedGroups.add(i);
+      renderCrawlGroupChips();
+    }
+
+    function crawlSelectAll() {
+      groups.forEach((_, i) => _crawlSelectedGroups.add(i));
+      renderCrawlGroupChips();
+    }
+
+    function crawlClearSel() {
+      _crawlSelectedGroups.clear();
+      renderCrawlGroupChips();
+    }
+
+    function _updateCrawlSelCount() {
+      const n = _crawlSelectedGroups.size;
+      document.getElementById('crawlSelCount').textContent =
+        n ? `Đã chọn ${n} group` : 'Chưa chọn group nào';
+    }
+
+    // Keywords tag input
+    function crawlKwKeydown(e) {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const val = e.target.value.trim();
+        if (val && !_crawlExtraKw.includes(val)) {
+          _crawlExtraKw.push(val);
+          _renderKwTags();
+        }
+        e.target.value = '';
+      } else if (e.key === 'Backspace' && !e.target.value && _crawlExtraKw.length) {
+        _crawlExtraKw.pop();
+        _renderKwTags();
+      }
+    }
+
+    function _renderKwTags() {
+      const wrap = document.getElementById('kwWrap');
+      const inp = document.getElementById('kwInput');
+      // Remove existing tags
+      wrap.querySelectorAll('.kw-tag').forEach(t => t.remove());
+      _crawlExtraKw.forEach((kw, i) => {
+        const tag = document.createElement('span');
+        tag.className = 'kw-tag';
+        tag.innerHTML = `${escHtml(kw)}<span class="kw-rm" onclick="crawlRemoveKw(${i})">×</span>`;
+        wrap.insertBefore(tag, inp);
+      });
+    }
+
+    function crawlRemoveKw(i) {
+      _crawlExtraKw.splice(i, 1);
+      _renderKwTags();
+    }
+
+    // Start crawl
+    async function crawlStart() {
+      const selectedGroups = [..._crawlSelectedGroups].map(i => {
+        const g = groups[i];
+        const url = g.url || '';
+        const m = url.match(/groups\/([^/?#]+)/);
+        const gId = m ? m[1] : url.replace(/^https?:\/\/.*facebook\.com\/groups\//, '').split('/')[0];
+        return { id: gId, name: g.name || gId, url: g.url };
+      }).filter(g => g.id);
+
+      if (!selectedGroups.length) {
+        alert('Vui lòng chọn ít nhất 1 Group!'); return;
+      }
+
+      const resp = await api('/api/crawl-posts', {
+        method: 'POST',
+        body: JSON.stringify({ groups: selectedGroups, extra_keywords: _crawlExtraKw }),
+      });
+
+      if (resp.error) { alert(resp.error); return; }
+
+      addLog(nowTime(), `🔍 Bắt đầu crawl ${selectedIds.length} groups, ${resp.keywords.length} từ khoá…`, 'info');
+
+      // Update stat
+      document.getElementById('statGroups').textContent = selectedIds.length;
+      document.getElementById('crawlStartBtn').disabled = true;
+      document.getElementById('crawlStopBtn').disabled = false;
+      document.getElementById('crawlExportBtn').disabled = true;
+      document.getElementById('crawlProgressWrap').style.display = '';
+      document.getElementById('crawlError').style.display = 'none';
+
+      _crawlPage = 1;
+      _crawlPollStart();
+    }
+
+    function _crawlPollStart() {
+      if (_crawlPollTimer) clearInterval(_crawlPollTimer);
+      _crawlPollTimer = setInterval(_crawlPollTick, 2000);
+      _crawlPollTick();
+    }
+
+    async function _crawlPollTick() {
+      const s = await api('/api/crawl-posts/status');
+      if (!s) return;
+
+      // Progress
+      const pct = s.total > 0 ? Math.round(s.progress / s.total * 100) : 0;
+      document.getElementById('crawlProgressBar').style.width = pct + '%';
+      document.getElementById('crawlProgressLabel').textContent = `${s.progress} / ${s.total}`;
+
+      const gTxt = s.current_group ? `Group: ${s.current_group}` : '';
+      const kTxt = s.current_keyword ? ` | Khoá: "${s.current_keyword}"` : '';
+      document.getElementById('crawlStatusText').textContent =
+        s.running ? (gTxt + kTxt || 'Đang khởi động Chrome…') : (s.done ? 'Hoàn thành!' : 'Sẵn sàng');
+
+      // Stats
+      document.getElementById('statRaw').textContent = s.raw_count || 0;
+      document.getElementById('statUnique').textContent = s.result_count || 0;
+
+      // Badge
+      const badge = document.getElementById('crawlBadge');
+      if (s.result_count > 0) {
+        badge.style.display = 'flex';
+        badge.textContent = s.result_count;
+      }
+
+      if (s.error) {
+        const errEl = document.getElementById('crawlError');
+        errEl.style.display = '';
+        errEl.textContent = '❌ ' + s.error;
+      }
+
+      if (!s.running && (s.done || s.error)) {
+        if (_crawlPollTimer) {
+          clearInterval(_crawlPollTimer);
+          _crawlPollTimer = null;
+        }
+        document.getElementById('crawlStartBtn').disabled = false;
+        document.getElementById('crawlStopBtn').disabled = true;
+
+        if (s.result_count > 0) {
+          document.getElementById('crawlExportBtn').disabled = false;
+          addLog(nowTime(), `✅ Crawl xong! ${s.result_count} bài sau dedup.`, 'success');
+          await _crawlLoadResults(1);
+        } else if (!s.error) {
+          addLog(nowTime(), '⚠️ Crawl xong nhưng không tìm thấy bài nào.', 'warning');
+          document.getElementById('crawlResultBody').innerHTML = `<tr><td colspan="5">
+            <div class="empty-state"><div class="empty-icon">😕</div><p>Không tìm thấy bài viết nào phù hợp.</p></div>
+          </td></tr>`;
+        }
+      }
+    }
+
+    async function loadCrawlState() {
+      const s = await api('/api/crawl-posts/status');
+      if (!s) return;
+
+      document.getElementById('statRaw').textContent = s.raw_count || 0;
+      document.getElementById('statUnique').textContent = s.result_count || 0;
+
+      const badge = document.getElementById('crawlBadge');
+      if (s.result_count > 0) {
+        badge.style.display = 'flex';
+        badge.textContent = s.result_count;
+        document.getElementById('crawlExportBtn').disabled = false;
+        await _crawlLoadResults(1);
+      }
+
+      if (s.running) {
+        document.getElementById('crawlStartBtn').disabled = true;
+        document.getElementById('crawlStopBtn').disabled = false;
+        document.getElementById('crawlProgressWrap').style.display = '';
+        _crawlPollStart();
+      }
+    }
+
+    async function crawlStop() {
+      await api('/api/crawl-posts/stop', { method: 'POST' });
+      addLog(nowTime(), '⏹ Đang dừng crawl…', 'warning');
+      document.getElementById('crawlStopBtn').disabled = true;
+    }
+
+    async function _crawlLoadResults(page) {
+      _crawlPage = page;
+      const data = await api(`/api/crawl-posts/results?page=${page}&per_page=${_crawlPerPage}`);
+      if (!data || !data.items) return;
+
+      const tbody = document.getElementById('crawlResultBody');
+      if (!data.items.length) {
+        tbody.innerHTML = `<tr><td colspan="6">
+          <div class="empty-state"><div class="empty-icon">🔍</div><p>Không có kết quả.</p></div>
+        </td></tr>`;
+        return;
+      }
+
+      const offset = (page - 1) * _crawlPerPage;
+      tbody.innerHTML = data.items.map((p, i) => `
+        <tr>
+          <td style="color:var(--text3);white-space:nowrap">${offset + i + 1}</td>
+          <td><div class="result-author" title="${escHtml(p.author)}">${escHtml(p.author)}</div></td>
+          <td><div class="result-content">${escHtml(p.content)}</div></td>
+          <td style="white-space:nowrap;font-size:12px;color:var(--accent2);font-weight:600">${escHtml(p.group_name || p.group_id || '')}</td>
+          <td>${p.url ? `<a class="result-link" href="${escHtml(p.url)}" target="_blank">🔗 Xem</a>` : '—'}</td>
+        </tr>
+      `).join('');
+
+      // Pagination
+      const totalPages = Math.ceil(data.total / _crawlPerPage);
+      _renderPagination(totalPages, page);
+    }
+
+    function _renderPagination(total, current) {
+      const wrap = document.getElementById('crawlPagination');
+      if (total <= 1) { wrap.innerHTML = ''; return; }
+      let html = '';
+      html += `<button class="page-btn" ${current === 1 ? 'disabled' : ''} onclick="_crawlLoadResults(${current - 1})">‹</button>`;
+      for (let p = Math.max(1, current - 2); p <= Math.min(total, current + 2); p++) {
+        html += `<button class="page-btn ${p === current ? 'active' : ''}" onclick="_crawlLoadResults(${p})">${p}</button>`;
+      }
+      html += `<button class="page-btn" ${current === total ? 'disabled' : ''} onclick="_crawlLoadResults(${current + 1})">›</button>`;
+      html += `<span style="font-size:11px;color:var(--text3);margin-left:4px">${current}/${total}</span>`;
+      wrap.innerHTML = html;
+    }
+
+    async function crawlExport() {
+      window.location.href = '/api/crawl-posts/export';
+      addLog(nowTime(), '📥 Đang tải file Excel…', 'info');
     }
   </script>
 </body>
