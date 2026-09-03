@@ -12,8 +12,8 @@ import zipfile
 from pathlib import Path
 
 # ─── Cấu hình ────────────────────────────────────────────────────────────────
-GITHUB_OWNER = "YOUR_GITHUB_USERNAME"   # <-- điền username GitHub của bạn
-GITHUB_REPO  = "YOUR_REPO_NAME"         # <-- điền tên repo
+GITHUB_OWNER = "CongCuong2709"   # <-- điền username GitHub của bạn
+GITHUB_REPO  = "FB_auto_post"         # <-- điền tên repo
 
 BASE_DIR     = Path(__file__).parent.resolve()
 VERSION_FILE = BASE_DIR / "version.txt"

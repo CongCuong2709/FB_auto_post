@@ -1,6 +1,7 @@
 import json
 import os
 import queue
+import re
 import threading
 import webbrowser
 from datetime import datetime
@@ -232,19 +233,30 @@ def crawl_posts_start():
         elif isinstance(g, str) and g.strip():
             groups.append(g.strip())
 
-    extra_kws = [k.strip() for k in data.get("extra_keywords", []) if isinstance(k, str) and k.strip()]
+    role_kws = [k.strip() for k in data.get("role_keywords", data.get("extra_keywords", [])) if isinstance(k, str) and k.strip()]
 
     if not groups:
         return jsonify({"error": "Vui lòng chọn ít nhất 1 Group"}), 400
 
-    # Gộp từ khoá mặc định + từ khoá người dùng thêm
-    seen_kw: set[str] = set()
+    # Danh sách từ khoá tìm kiếm gồm:
+    # 1. Từ khoá HR nhập (Tìm chính) — VD: "kế toán", "telesale"
+    # 2. Từ khoá mặc định (Vét cạn)  — VD: "em là"
     keywords: list[str] = []
-    for kw in DEFAULT_JOBSEEKER_KEYWORDS + extra_kws:
-        lk = kw.lower()
+    seen_kw: set[str] = set()
+
+    # Thêm các từ khoá HR nhập (Tìm chính)
+    for r_kw in role_kws:
+        lk = r_kw.lower()
         if lk not in seen_kw:
             seen_kw.add(lk)
-            keywords.append(kw)
+            keywords.append(r_kw)
+
+    # Thêm các từ khoá mặc định (Vét cạn)
+    for def_kw in DEFAULT_JOBSEEKER_KEYWORDS:
+        lk = def_kw.lower()
+        if lk not in seen_kw:
+            seen_kw.add(lk)
+            keywords.append(def_kw)
 
     total = len(groups) * len(keywords)
     _crawl_stop.clear()
@@ -252,6 +264,7 @@ def crawl_posts_start():
         running=True, done=False, progress=0, total=total,
         current_group="", current_keyword="",
         raw_count=0, results=[], error=None,
+        role_keywords=role_kws,
     )
 
     t = threading.Thread(
@@ -342,10 +355,13 @@ def crawl_posts_results():
     per  = max(1, min(int(request.args.get("per_page", 25)), 100))
     with _crawl_lock:
         all_r = list(_crawl_state["results"])
+        role_kws = list(_crawl_state.get("role_keywords", []))
     start = (page - 1) * per
     return jsonify({
         "total": len(all_r), "page": page, "per_page": per,
+        "role_keywords": role_kws,
         "items": all_r[start: start + per],
+        "all_items": all_r,
     })
 
 
@@ -355,44 +371,133 @@ def crawl_posts_stop():
     return jsonify({"status": "stopping"})
 
 
+import unicodedata
+
+def remove_accents(text: str) -> str:
+    if not text:
+        return ""
+    text = unicodedata.normalize('NFD', str(text))
+    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+    return text.replace('đ', 'd').replace('Đ', 'D').lower()
+
+def match_hr_keyword(kw: str, content: str, author: str = "") -> bool:
+    if not kw:
+        return False
+    norm_kw = remove_accents(kw).strip()
+    if not norm_kw:
+        return False
+    norm_target = remove_accents(f"{author} {content}")
+
+    if norm_kw in norm_target:
+        return True
+
+    kw_words = norm_kw.split()
+    if len(kw_words) > 1 and all(w in norm_target for w in kw_words):
+        return True
+
+    return False
+
+
+_PHONE_PATTERN = re.compile(r"(?:(?:\+?84|0)\s*[\.\-\s]?\s*)?(?:\d\s*[\.\-\s]?\s*){9,10}")
+
+
+def extract_phone(text: str) -> str:
+    if not text:
+        return ""
+    matches = _PHONE_PATTERN.findall(text)
+    for m in matches:
+        digits = re.sub(r"\D", "", m)
+        if digits.startswith("84") and len(digits) == 11:
+            digits = "0" + digits[2:]
+        if len(digits) == 10 and digits.startswith("0"):
+            return digits
+    return ""
+
+
 @app.route("/api/crawl-posts/export")
 def crawl_posts_export():
     with _crawl_lock:
         results = list(_crawl_state["results"])
+        role_kws = list(_crawl_state.get("role_keywords", []))
     if not results:
         return jsonify({"error": "Không có kết quả để xuất"}), 400
 
     wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Người tìm việc"
 
-    headers = ["STT", "Tên", "Nội dung bài viết", "Group", "Link bài"]
-    ws.append(headers)
+    def _format_sheet(ws, post_list):
+        headers = ["STT", "Tên", "SĐT", "Nội dung bài viết", "Group", "Link bài"]
+        ws.append(headers)
 
-    hdr_font  = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
-    hdr_fill  = PatternFill(start_color="0F172A", end_color="0F172A", fill_type="solid")
-    hdr_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    for cell in ws[1]:
-        cell.font = hdr_font; cell.fill = hdr_fill; cell.alignment = hdr_align
+        hdr_font  = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
+        hdr_fill  = PatternFill(start_color="0F172A", end_color="0F172A", fill_type="solid")
+        hdr_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for cell in ws[1]:
+            cell.font = hdr_font; cell.fill = hdr_fill; cell.alignment = hdr_align
 
-    even_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
-    wrap_top  = Alignment(vertical="top", wrap_text=True)
+        even_fill  = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+        wrap_top   = Alignment(vertical="top", wrap_text=True)
+        center_top = Alignment(horizontal="center", vertical="top")
+        link_font  = Font(name="Calibri", color="0563C1", underline="single")
 
-    for idx, post in enumerate(results, 1):
-        ws.append([idx, post.get("author", ""), post.get("content", ""),
-                   post.get("group_name", post.get("group_id", "")), post.get("url", "")])
-        for cell in ws[idx + 1]:
-            cell.alignment = wrap_top
-            if idx % 2 == 0:
-                cell.fill = even_fill
+        for idx, post in enumerate(post_list, 1):
+            url = (post.get("url") or "").strip()
+            phone = post.get("phone") or extract_phone(post.get("content", ""))
+            ws.append([idx, post.get("author", ""), phone or "—", post.get("content", ""),
+                       post.get("group_name", post.get("group_id", "")), "🔗 Link" if url else "—"])
+            
+            row_idx = idx + 1
+            for cell in ws[row_idx]:
+                cell.alignment = wrap_top
+                if idx % 2 == 0:
+                    cell.fill = even_fill
 
-    for ci, w in enumerate([6, 28, 85, 28, 60], 1):
-        ws.column_dimensions[get_column_letter(ci)].width = w
-    ws.row_dimensions[1].height = 28
-    for r in range(2, len(results) + 2):
-        ws.row_dimensions[r].height = 90
-    ws.freeze_panes = "A2"
-    ws.auto_filter.ref = ws.dimensions
+            # Căn giữa cột STT (1) và SĐT (3)
+            ws.cell(row=row_idx, column=1).alignment = center_top
+            ws.cell(row=row_idx, column=3).alignment = center_top
+
+            if url:
+                link_cell = ws.cell(row=row_idx, column=6)
+                link_cell.hyperlink = url
+                link_cell.font = link_font
+                link_cell.alignment = center_top
+
+        for ci, w in enumerate([6, 24, 16, 80, 25, 15], 1):
+            ws.column_dimensions[get_column_letter(ci)].width = w
+        ws.row_dimensions[1].height = 28
+        for r in range(2, len(post_list) + 2):
+            ws.row_dimensions[r].height = 90
+        ws.freeze_panes = "A2"
+        ws.auto_filter.ref = ws.dimensions
+
+    def _safe_sheet_title(name):
+        clean_name = re.sub(r'[\\/*?:\[\]]', '', name).strip()
+        return clean_name[:31] if clean_name else "Sheet"
+
+    # Sheet 1: Tất cả
+    ws_all = wb.active
+    ws_all.title = "Tất cả bài viết"
+    _format_sheet(ws_all, results)
+
+    # Nếu có từ khoá HR nhập, tạo từng Sheet cho mỗi từ khoá + Sheet Dư thừa
+    if role_kws:
+        matched_indices = set()
+        for kw in role_kws:
+            matching = []
+            for idx, post in enumerate(results):
+                content = post.get("content") or ""
+                author = post.get("author") or ""
+                if match_hr_keyword(kw, content, author):
+                    matching.append(post)
+                    matched_indices.add(idx)
+
+            title = _safe_sheet_title(f"KW - {kw}")
+            ws_kw = wb.create_sheet(title=title)
+            _format_sheet(ws_kw, matching)
+
+        # Sheet "Dư thừa" (bài không khớp bất kỳ từ khoá HR nào)
+        remainder = [post for idx, post in enumerate(results) if idx not in matched_indices]
+        ws_rem = wb.create_sheet(title="Dư thừa (Còn lại)")
+        _format_sheet(ws_rem, remainder)
 
     os.makedirs("data", exist_ok=True)
     ts    = datetime.now().strftime("%Y%m%d_%H%M%S")

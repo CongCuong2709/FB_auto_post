@@ -23,7 +23,9 @@ os.environ.setdefault(
 
 # ─── Từ khoá job-seeker mặc định ─────────────────────────────────────────────
 DEFAULT_JOBSEEKER_KEYWORDS = [
-    "em là"
+    "em",
+    "tôi",
+    "mình"
 ]
 
 # ─── Noise lines (innerText của các nav/icon element) ─────────────────────────
@@ -50,6 +52,28 @@ _SHARED_RE = re.compile(
 
 # Pattern loại bỏ số reaction (32, 162, 1.2K, …)
 _REACTION_RE = re.compile(r"^\d{1,7}[.,]?\d{0,3}[KkMm]?$")
+
+# Pattern bắt buộc phải có ngôi thứ nhất (em, mình, tôi, tớ, cháu) làm đại từ xưng hô
+_FIRST_PERSON_RE = re.compile(
+    r"\b(em|mình|tôi|tớ|cháu)\b",
+    re.IGNORECASE,
+)
+
+# Pattern trích xuất số điện thoại 10 số (chấp nhận khoảng trắng, ., -)
+_PHONE_PATTERN = re.compile(r"(?:(?:\+?84|0)\s*[\.\-\s]?\s*)?(?:\d\s*[\.\-\s]?\s*){9,10}")
+
+
+def extract_phone(text: str) -> str:
+    if not text:
+        return ""
+    matches = _PHONE_PATTERN.findall(text)
+    for m in matches:
+        digits = re.sub(r"\D", "", m)
+        if digits.startswith("84") and len(digits) == 11:
+            digits = "0" + digits[2:]
+        if len(digits) == 10 and digits.startswith("0"):
+            return digits
+    return ""
 
 
 class FBCrawler:
@@ -267,6 +291,8 @@ class FBCrawler:
 
             search_link = f"https://www.facebook.com/groups/{group_id.strip()}/search/?q={search_q}"
 
+            phone = extract_phone(raw_text)
+
             raw_rec: dict = {
                 "group_id": group_id,
                 "group_name": group_name or group_id,
@@ -275,6 +301,7 @@ class FBCrawler:
                 "raw_text": raw_text[:800],
                 "extracted": {
                     "author": author,
+                    "phone": phone,
                     "content_preview": content[:200],
                     "url": search_link,
                 },
@@ -282,10 +309,16 @@ class FBCrawler:
                 "filter_reason": "",
             }
 
-            # Lọc bài có số lần xuống dòng > 5 (tin tuyển dụng thường liệt kê > 5 dòng)
+            # Lọc bài có số lần xuống dòng > 9 (tin tuyển dụng thường liệt kê > 5 dòng)
             line_cnt = content.count("\n")
-            if line_cnt > 5:
+            if line_cnt > 9:
                 raw_rec["filter_reason"] = f"too_many_lines ({line_cnt})"
+                self._debug_log.append(raw_rec)
+                continue
+
+            # Lọc bài bắt buộc phải chứa đại từ xưng hô ngôi thứ nhất (em, mình, tôi, tớ, cháu)
+            if not _FIRST_PERSON_RE.search(content):
+                raw_rec["filter_reason"] = "no_first_person_pronoun"
                 self._debug_log.append(raw_rec)
                 continue
 
@@ -303,6 +336,7 @@ class FBCrawler:
 
             results.append({
                 "author": author,
+                "phone": phone,
                 "content": content[:500],
                 "url": search_link,
                 "group_id": group_id,

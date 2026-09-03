@@ -535,6 +535,33 @@
       color: var(--accent2);
     }
 
+    .crawl-cat-btn {
+      padding: 5px 12px;
+      border-radius: 99px;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      font-size: 12px;
+      color: var(--text2);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: var(--trans);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .crawl-cat-btn:hover {
+      background: var(--surface3);
+      color: var(--text);
+    }
+
+    .crawl-cat-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+
     .group-chip .chip-remove {
       color: var(--text3);
       font-size: 14px;
@@ -1594,19 +1621,19 @@
                   <button class="btn btn-ghost btn-sm" onclick="crawlClearSel()">Bỏ chọn</button>
                 </div>
               </div>
-              <div class="crawl-group-chips" id="crawlGroupChips">
+              <div class="group-chips" id="crawlGroupChips">
                 <span style="color:var(--text3);font-size:12px">Chưa có group. Thêm ở tab 👥</span>
               </div>
             </div>
 
-            <!-- Keywords -->
+            <!-- Role / Job Keywords -->
             <div class="card">
-              <div class="card-title">🔑 Từ khoá tìm kiếm</div>
+              <div class="card-title">💼 Từ khoá tuyển dụng (HR Words)</div>
               <p style="font-size:11px;color:var(--text3);margin-bottom:8px">
-                Mặc định: <span style="color:var(--accent2)">Tìm việc làm</span>. Nhập thêm rồi Enter để thêm từ khoá.
+                Nhập tên vị trí/kỹ năng (ví dụ: <span style="color:var(--accent2)">Kế toán, Sales, Gia sư...</span>) để <strong>Tìm chính</strong>. Hệ thống sẽ lần lượt tìm kiếm theo các từ khoá này + tự động chạy từ khoá mặc định (<em>"em là"</em>) để <strong>Vét cạn</strong>.
               </p>
               <div class="kw-wrap" id="kwWrap" onclick="document.getElementById('kwInput').focus()">
-                <input class="kw-input" id="kwInput" placeholder="Nhập từ khoá rồi nhấn Enter…"
+                <input class="kw-input" id="kwInput" placeholder="Nhập vị trí (ví dụ: Kế toán) rồi nhấn Enter…"
                   onkeydown="crawlKwKeydown(event)" />
               </div>
             </div>
@@ -1665,6 +1692,9 @@
                 </div>
               </div>
 
+              <!-- Category Sub-tabs -->
+              <div class="crawl-cat-tabs" id="crawlCatTabs" style="display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;padding-bottom:4px"></div>
+
               <!-- Table -->
               <div style="overflow-x:auto">
                 <table class="result-table">
@@ -1672,13 +1702,14 @@
                     <tr>
                       <th>#</th>
                       <th>Tên</th>
+                      <th>SĐT</th>
                       <th>Nội dung</th>
                       <th>Group</th>
                       <th>Link</th>
                     </tr>
                   </thead>
                   <tbody id="crawlResultBody">
-                    <tr><td colspan="5">
+                    <tr><td colspan="6">
                       <div class="empty-state">
                         <div class="empty-icon">🔍</div>
                         <p>Nhấn "Bắt đầu Crawl" để tìm kiếm bài viết</p>
@@ -2492,19 +2523,49 @@
     let _crawlPage = 1;
     const _crawlPerPage = 25;
 
-    // Render group chips for crawl tab (called after groups load)
+    // Render group chips for crawl tab (categorized like Soạn & Đăng)
     function renderCrawlGroupChips() {
-      const wrap = document.getElementById('crawlGroupChips');
+      const el = document.getElementById('crawlGroupChips');
+      if (!el) return;
       if (!groups.length) {
-        wrap.innerHTML = `<span style="color:var(--text3);font-size:12px">Chưa có group. Thêm ở tab 👥</span>`;
+        el.innerHTML = `<span style="color:var(--text3);font-size:12px">Chưa có group. Thêm ở tab 👥</span>`;
+        _updateCrawlSelCount();
         return;
       }
-      wrap.innerHTML = groups.map((g, i) => {
-        const sel = _crawlSelectedGroups.has(i);
-        return `<span class="group-chip ${sel ? 'selected' : ''}" onclick="crawlToggleGroup(${i})"
-          title="${escHtml(g.url || '')}">${escHtml(g.name)}</span>`;
+
+      // Group chips by category
+      const byCategory = {};
+      groups.forEach((g, i) => {
+        const cat = (g.category || '').trim() || 'Chưa phân nhóm';
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push({ g, i });
+      });
+
+      el.innerHTML = Object.entries(byCategory).map(([cat, items]) => {
+        const chips = items.map(({ g, i }) =>
+          `<div class="group-chip ${_crawlSelectedGroups.has(i) ? 'selected' : ''}" onclick="crawlToggleGroup(${i})" title="${escHtml(g.url || '')}">
+        ${escHtml(g.name)}
+      </div>`
+        ).join('');
+        return `
+      <div class="chip-cat-label">
+        📁 ${escHtml(cat)}
+        <button class="chip-cat-sel-btn" onclick="crawlSelectCatGroups('${escHtml(cat)}')" title="Chọn cả nhóm">☑ Tất cả</button>
+      </div>
+      ${chips}
+    `;
       }).join('');
+
       _updateCrawlSelCount();
+    }
+
+    function crawlSelectCatGroups(cat) {
+      groups.forEach((g, i) => {
+        const c = (g.category || '').trim() || 'Chưa phân nhóm';
+        if (c === cat) _crawlSelectedGroups.add(i);
+      });
+      renderCrawlGroupChips();
+      addLog('--:--:--', `☑ Crawl: Đã chọn tất cả group nhóm "${cat}"`, 'info');
     }
 
     function crawlToggleGroup(i) {
@@ -2584,10 +2645,10 @@
 
       if (resp.error) { alert(resp.error); return; }
 
-      addLog(nowTime(), `🔍 Bắt đầu crawl ${selectedIds.length} groups, ${resp.keywords.length} từ khoá…`, 'info');
+      addLog(nowTime(), `🔍 Bắt đầu crawl ${selectedGroups.length} groups, ${resp.keywords.length} từ khoá (${resp.keywords.join(', ')})…`, 'info');
 
       // Update stat
-      document.getElementById('statGroups').textContent = selectedIds.length;
+      document.getElementById('statGroups').textContent = selectedGroups.length;
       document.getElementById('crawlStartBtn').disabled = true;
       document.getElementById('crawlStopBtn').disabled = false;
       document.getElementById('crawlExportBtn').disabled = true;
@@ -2685,32 +2746,168 @@
       document.getElementById('crawlStopBtn').disabled = true;
     }
 
-    async function _crawlLoadResults(page) {
-      _crawlPage = page;
-      const data = await api(`/api/crawl-posts/results?page=${page}&per_page=${_crawlPerPage}`);
-      if (!data || !data.items) return;
+    let _crawlAllResults = [];
+    let _crawlRoleKeywords = [];
+    let _crawlActiveCat = 'all';
 
+    async function _crawlLoadResults(page) {
+      _crawlPage = page || 1;
+      const data = await api(`/api/crawl-posts/results?page=1&per_page=1000`);
+      if (!data) return;
+
+      _crawlAllResults = data.all_items || data.items || [];
+      _crawlRoleKeywords = data.role_keywords || [];
+
+      _renderCrawlCatTabs();
+      _renderCrawlTablePage(_crawlPage);
+    }
+
+    function removeAccents(str) {
+      if (!str) return '';
+      return str.normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+        .toLowerCase();
+    }
+
+    function matchHrKeyword(kw, content, author) {
+      if (!kw) return false;
+      const normKw = removeAccents(kw).trim();
+      if (!normKw) return false;
+      const normTarget = removeAccents((author || '') + ' ' + (content || ''));
+
+      if (normTarget.includes(normKw)) return true;
+
+      const kwWords = normKw.split(/\s+/);
+      if (kwWords.length > 1 && kwWords.every(w => normTarget.includes(w))) return true;
+
+      return false;
+    }
+
+    function _renderCrawlCatTabs() {
+      const wrap = document.getElementById('crawlCatTabs');
+      if (!wrap) return;
+
+      if (!_crawlAllResults.length || !_crawlRoleKeywords.length) {
+        wrap.innerHTML = '';
+        return;
+      }
+
+      const matchedIndices = new Set();
+      const kwMap = {};
+
+      _crawlRoleKeywords.forEach((kw, i) => {
+        const matches = [];
+        _crawlAllResults.forEach((p, idx) => {
+          if (matchHrKeyword(kw, p.content, p.author)) {
+            matches.push(p);
+            matchedIndices.add(idx);
+          }
+        });
+        kwMap['kw_' + i] = matches;
+      });
+
+      const remainder = _crawlAllResults.filter((_, idx) => !matchedIndices.has(idx));
+
+      let html = '';
+      html += `<button class="crawl-cat-btn ${_crawlActiveCat === 'all' ? 'active' : ''}" onclick="_setCrawlCatFilter('all')">
+        🌐 Tất cả (${_crawlAllResults.length})
+      </button>`;
+
+      _crawlRoleKeywords.forEach((kw, i) => {
+        const cnt = (kwMap['kw_' + i] || []).length;
+        html += `<button class="crawl-cat-btn ${_crawlActiveCat === 'kw_' + i ? 'active' : ''}" onclick="_setCrawlCatFilter('kw_${i}')">
+          🔑 ${escHtml(kw)} (${cnt})
+        </button>`;
+      });
+
+      html += `<button class="crawl-cat-btn ${_crawlActiveCat === 'remainder' ? 'active' : ''}" onclick="_setCrawlCatFilter('remainder')">
+        📦 Dư thừa / Còn lại (${remainder.length})
+      </button>`;
+
+      wrap.innerHTML = html;
+    }
+
+    function _setCrawlCatFilter(cat) {
+      _crawlActiveCat = cat;
+      _crawlPage = 1;
+      _renderCrawlCatTabs();
+      _renderCrawlTablePage(1);
+    }
+
+    function _getFilteredCrawlResults() {
+      if (!_crawlRoleKeywords.length || _crawlActiveCat === 'all') {
+        return _crawlAllResults;
+      }
+
+      const matchedIndices = new Set();
+      const kwMap = {};
+
+      _crawlRoleKeywords.forEach((kw, i) => {
+        const matches = [];
+        _crawlAllResults.forEach((p, idx) => {
+          if (matchHrKeyword(kw, p.content, p.author)) {
+            matches.push(p);
+            matchedIndices.add(idx);
+          }
+        });
+        kwMap['kw_' + i] = matches;
+      });
+
+      if (_crawlActiveCat === 'remainder') {
+        return _crawlAllResults.filter((_, idx) => !matchedIndices.has(idx));
+      }
+
+      return kwMap[_crawlActiveCat] || [];
+    }
+
+    function extractPhoneJs(text) {
+      if (!text) return '';
+      const matches = text.match(/(?:(?:\+?84|0)\s*[\.\-\s]?\s*)?(?:\d\s*[\.\-\s]?\s*){9,10}/g);
+      if (!matches) return '';
+      for (let m of matches) {
+        let digits = m.replace(/\D/g, '');
+        if (digits.startsWith('84') && digits.length === 11) {
+          digits = '0' + digits.slice(2);
+        }
+        if (digits.length === 10 && digits.startsWith('0')) {
+          return digits;
+        }
+      }
+      return '';
+    }
+
+    function _renderCrawlTablePage(page) {
+      _crawlPage = page;
+      const filtered = _getFilteredCrawlResults();
       const tbody = document.getElementById('crawlResultBody');
-      if (!data.items.length) {
+
+      if (!filtered.length) {
         tbody.innerHTML = `<tr><td colspan="6">
-          <div class="empty-state"><div class="empty-icon">🔍</div><p>Không có kết quả.</p></div>
+          <div class="empty-state"><div class="empty-icon">🔍</div><p>Không có kết quả nào trong mục này.</p></div>
         </td></tr>`;
+        _renderPagination(0, 1);
         return;
       }
 
       const offset = (page - 1) * _crawlPerPage;
-      tbody.innerHTML = data.items.map((p, i) => `
+      const pageItems = filtered.slice(offset, offset + _crawlPerPage);
+
+      tbody.innerHTML = pageItems.map((p, i) => {
+        const phone = p.phone || extractPhoneJs(p.content) || '—';
+        return `
         <tr>
           <td style="color:var(--text3);white-space:nowrap">${offset + i + 1}</td>
           <td><div class="result-author" title="${escHtml(p.author)}">${escHtml(p.author)}</div></td>
+          <td style="white-space:nowrap;font-weight:600;color:${phone !== '—' ? 'var(--accent2)' : 'var(--text3)'}">${escHtml(phone)}</td>
           <td><div class="result-content">${escHtml(p.content)}</div></td>
           <td style="white-space:nowrap;font-size:12px;color:var(--accent2);font-weight:600">${escHtml(p.group_name || p.group_id || '')}</td>
           <td>${p.url ? `<a class="result-link" href="${escHtml(p.url)}" target="_blank">🔗 Xem</a>` : '—'}</td>
         </tr>
-      `).join('');
+      `;
+      }).join('');
 
-      // Pagination
-      const totalPages = Math.ceil(data.total / _crawlPerPage);
+      const totalPages = Math.ceil(filtered.length / _crawlPerPage);
       _renderPagination(totalPages, page);
     }
 
@@ -2718,11 +2915,11 @@
       const wrap = document.getElementById('crawlPagination');
       if (total <= 1) { wrap.innerHTML = ''; return; }
       let html = '';
-      html += `<button class="page-btn" ${current === 1 ? 'disabled' : ''} onclick="_crawlLoadResults(${current - 1})">‹</button>`;
+      html += `<button class="page-btn" ${current === 1 ? 'disabled' : ''} onclick="_renderCrawlTablePage(${current - 1})">‹</button>`;
       for (let p = Math.max(1, current - 2); p <= Math.min(total, current + 2); p++) {
-        html += `<button class="page-btn ${p === current ? 'active' : ''}" onclick="_crawlLoadResults(${p})">${p}</button>`;
+        html += `<button class="page-btn ${p === current ? 'active' : ''}" onclick="_renderCrawlTablePage(${p})">${p}</button>`;
       }
-      html += `<button class="page-btn" ${current === total ? 'disabled' : ''} onclick="_crawlLoadResults(${current + 1})">›</button>`;
+      html += `<button class="page-btn" ${current === total ? 'disabled' : ''} onclick="_renderCrawlTablePage(${current + 1})">›</button>`;
       html += `<span style="font-size:11px;color:var(--text3);margin-left:4px">${current}/${total}</span>`;
       wrap.innerHTML = html;
     }
