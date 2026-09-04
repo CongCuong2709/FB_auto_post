@@ -1628,12 +1628,17 @@
 
             <!-- Role / Job Keywords -->
             <div class="card">
-              <div class="card-title">💼 Từ khoá tuyển dụng (HR Words)</div>
+              <div class="card-title">💼 Từ khoá tìm kiếm <span style="color:var(--error);font-size:11px">*Bắt buộc</span></div>
               <p style="font-size:11px;color:var(--text3);margin-bottom:8px">
-                Nhập tên vị trí/kỹ năng (ví dụ: <span style="color:var(--accent2)">Kế toán, Sales, Gia sư...</span>) để <strong>Tìm chính</strong>. Hệ thống sẽ lần lượt tìm kiếm theo các từ khoá này + tự động chạy từ khoá mặc định (<em>"em là"</em>) để <strong>Vét cạn</strong>.
+                Nhập tên vị trí/kỹ năng cần tuyển (ví dụ: <span style="color:var(--accent2)">Kế toán, Telesale, Lập trình...</span>). Hệ thống sẽ search trực tiếp theo từng từ khoá bạn nhập, rồi lọc ra bài job-seeker.
               </p>
+              <div id="crawlKwError" style="display:none;margin-bottom:8px;padding:8px 12px;
+                background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);
+                border-radius:var(--radius-sm);color:var(--error);font-size:12px">
+                ⚠️ Vui lòng nhập ít nhất 1 từ khoá trước khi bắt đầu crawl!
+              </div>
               <div class="kw-wrap" id="kwWrap" onclick="document.getElementById('kwInput').focus()">
-                <input class="kw-input" id="kwInput" placeholder="Nhập vị trí (ví dụ: Kế toán) rồi nhấn Enter…"
+                <input class="kw-input" id="kwInput" placeholder="Nhập từ khoá (VD: Kế toán) rồi nhấn Enter…"
                   onkeydown="crawlKwKeydown(event)" />
               </div>
             </div>
@@ -2638,9 +2643,18 @@
         alert('Vui lòng chọn ít nhất 1 Group!'); return;
       }
 
+      // Validate keyword bắt buộc
+      if (!_crawlExtraKw.length) {
+        const errEl = document.getElementById('crawlKwError');
+        errEl.style.display = '';
+        document.getElementById('kwInput').focus();
+        return;
+      }
+      document.getElementById('crawlKwError').style.display = 'none';
+
       const resp = await api('/api/crawl-posts', {
         method: 'POST',
-        body: JSON.stringify({ groups: selectedGroups, extra_keywords: _crawlExtraKw }),
+        body: JSON.stringify({ groups: selectedGroups, role_keywords: _crawlExtraKw }),
       });
 
       if (resp.error) { alert(resp.error); return; }

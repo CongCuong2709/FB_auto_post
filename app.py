@@ -4,6 +4,7 @@ import queue
 import re
 import threading
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 import openpyxl
@@ -14,7 +15,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, Response, jsonify, render_template, request, send_file
 
 from poster import FacebookPoster
-from crawler.fb_crawler import DEFAULT_JOBSEEKER_KEYWORDS, FBCrawler
+from crawler.fb_crawler import FBCrawler
 from crawler.deduplicator import deduplicate_posts
 
 # ─── App setup ────────────────────────────────────────────────────────────────
@@ -44,6 +45,7 @@ _crawl_state: dict = {
     "raw_count": 0,
     "results": [],
     "error": None,
+    "active_workers": 0,
 }
 _crawl_lock  = threading.Lock()
 _crawl_stop  = threading.Event()
@@ -238,25 +240,20 @@ def crawl_posts_start():
     if not groups:
         return jsonify({"error": "Vui lòng chọn ít nhất 1 Group"}), 400
 
-    # Danh sách từ khoá tìm kiếm gồm:
-    # 1. Từ khoá HR nhập (Tìm chính) — VD: "kế toán", "telesale"
-    # 2. Từ khoá mặc định (Vét cạn)  — VD: "em là"
+    if not role_kws:
+        return jsonify({"error": "Vui lòng nhập ít nhất 1 từ khoá tìm kiếm (VD: kế toán, telesale, lập trình...)"}), 400
+
+    # Danh sách từ khoá tìm kiếm: chỉ dùng từ khoá HR nhập — không dùng từ khoá mặc định
+    # Bộ lọc đại từ xưng hô (em, mình, tôi...) vẫn được áp dụng sau khi crawl
     keywords: list[str] = []
     seen_kw: set[str] = set()
-
-    # Thêm các từ khoá HR nhập (Tìm chính)
     for r_kw in role_kws:
         lk = r_kw.lower()
         if lk not in seen_kw:
             seen_kw.add(lk)
             keywords.append(r_kw)
 
-    # Thêm các từ khoá mặc định (Vét cạn)
-    for def_kw in DEFAULT_JOBSEEKER_KEYWORDS:
-        lk = def_kw.lower()
-        if lk not in seen_kw:
-            seen_kw.add(lk)
-            keywords.append(def_kw)
+    max_workers = max(1, min(int(data.get("max_workers", 2)), 5))  # giới hạn 1-5 Chrome
 
     total = len(groups) * len(keywords)
     _crawl_stop.clear()
@@ -265,57 +262,107 @@ def crawl_posts_start():
         current_group="", current_keyword="",
         raw_count=0, results=[], error=None,
         role_keywords=role_kws,
+        active_workers=0,
     )
 
     t = threading.Thread(
         target=_run_crawl_posts,
-        args=(groups, keywords),
+        args=(groups, keywords, max_workers),
         daemon=True,
     )
     t.start()
-    return jsonify({"status": "started", "total": total, "keywords": keywords})
+    return jsonify({"status": "started", "total": total, "keywords": keywords, "max_workers": max_workers})
 
 
-def _run_crawl_posts(groups, keywords):
+
+def _crawl_one_task(g_id: str, g_name: str, kw: str) -> list[dict]:
+    """Crawl 1 cặp (group, keyword) trên 1 Chrome riêng. Chạy trong ThreadPoolExecutor."""
+    if _crawl_stop.is_set():
+        return []
+
+    with _crawl_lock:
+        _crawl_state["active_workers"] += 1
+        _crawl_state["current_group"] = g_name or g_id
+        _crawl_state["current_keyword"] = kw
+
+    print(f"[crawl-posts][worker] Tìm: group={g_name!r} ({g_id}), keyword={kw!r}")
     crawler = None
+    posts: list[dict] = []
     try:
-        print("[crawl-posts] Đang khởi động Chrome...")
-        crawler = FBCrawler(stop_event=_crawl_stop)
-        print("[crawl-posts] Chrome đã mở!")
-        all_posts: list[dict] = []
+        crawler = FBCrawler(stop_event=_crawl_stop, use_session_file=True)
+        posts = crawler.search_group(g_id, kw, group_name=g_name)
+        print(f"[crawl-posts][worker] {g_name!r} × {kw!r}: tìm thấy {len(posts)} bài")
+    except RuntimeError as e:
+        print(f"[crawl-posts][worker] RuntimeError: {e}")
+        _crawl_stop.set()  # Dừng tất cả worker nếu session hết hạn
+        raise
+    except Exception as exc:
+        print(f"[crawl-posts][worker] Bỏ qua lỗi: {exc}")
+    finally:
+        if crawler:
+            try:
+                crawler.dump_debug()
+            except Exception:
+                pass
+            crawler.close()
+        with _crawl_lock:
+            _crawl_state["active_workers"] = max(0, _crawl_state["active_workers"] - 1)
+            _crawl_state["progress"] += 1
+            _crawl_state["raw_count"] += len(posts)
 
-        for group in groups:
-            if isinstance(group, dict):
-                g_id = group.get("id", "").strip()
-                g_name = group.get("name", g_id)
-            else:
-                g_id = str(group).strip()
-                g_name = g_id
+    return posts
 
-            if not g_id:
-                continue
 
-            for kw in keywords:
+def _run_crawl_posts(groups, keywords, max_workers: int = 2):
+    # ── Bước 1: Export session từ main profile ra file JSON ──────────────
+    print("[crawl-posts] Đang export session Facebook cho workers...")
+    session_ok = FBCrawler.export_session()
+    if not session_ok:
+        _cset(
+            running=False, done=True,
+            error="Không thể mở session Facebook. Vui lòng bấm 'Kết nối Facebook' rồi đăng nhập lại."
+        )
+        return
+
+    all_posts: list[dict] = []
+
+    # Xây danh sách tất cả task (g_id, g_name, kw)
+    tasks: list[tuple[str, str, str]] = []
+    for group in groups:
+        if isinstance(group, dict):
+            g_id = group.get("id", "").strip()
+            g_name = group.get("name", g_id)
+        else:
+            g_id = str(group).strip()
+            g_name = g_id
+        if not g_id:
+            continue
+        for kw in keywords:
+            tasks.append((g_id, g_name, kw))
+
+    print(f"[crawl-posts] Bắt đầu song song: {len(tasks)} task, max_workers={max_workers}")
+
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_crawl_one_task, g_id, g_name, kw): (g_id, g_name, kw)
+                for (g_id, g_name, kw) in tasks
+            }
+            for future in as_completed(futures):
+                g_id, g_name, kw = futures[future]
                 if _crawl_stop.is_set():
+                    # Huỷ các future còn lại
+                    for f in futures:
+                        f.cancel()
                     break
-                _cset(current_group=g_name or g_id, current_keyword=kw)
-                print(f"[crawl-posts] Tìm: group={g_name!r} ({g_id}), keyword={kw!r}")
                 try:
-                    posts = crawler.search_group(g_id, kw, group_name=g_name)
-                    print(f"[crawl-posts] Tìm thấy {len(posts)} bài")
-                    all_posts.extend(posts)
-                except RuntimeError as e:
-                    print(f"[crawl-posts] RuntimeError: {e}")
+                    result = future.result()
+                    all_posts.extend(result)
+                except RuntimeError:
                     _cset(running=False, done=True, error="Session hết hạn. Vui lòng kết nối lại Facebook.")
                     return
                 except Exception as exc:
-                    print(f"[crawl-posts] Bỏ qua lỗi: {exc}")
-                finally:
-                    with _crawl_lock:
-                        _crawl_state["progress"] += 1
-                        _crawl_state["raw_count"] = len(all_posts)
-            if _crawl_stop.is_set():
-                break
+                    print(f"[crawl-posts] Future lỗi ({g_name!r} × {kw!r}): {exc}")
 
         unique = deduplicate_posts(all_posts)
         clean  = [{k: v for k, v in p.items() if k != "date_obj"} for p in unique]
@@ -332,13 +379,6 @@ def _run_crawl_posts(groups, keywords):
         print(f"[crawl-posts] LỖI: {exc}")
         import traceback; traceback.print_exc()
         _cset(running=False, done=True, error=str(exc))
-    finally:
-        if crawler:
-            try:
-                crawler.dump_debug()
-            except Exception as e:
-                print(f"[crawl-posts] Không ghi debug: {e}")
-            crawler.close()
 
 
 @app.route("/api/crawl-posts/status")

@@ -14,7 +14,8 @@ from playwright.sync_api import sync_playwright
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
 _BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PROFILE_DIR = os.path.join(_BASE, "chrome_profile")
+PROFILE_DIR  = os.path.join(_BASE, "chrome_profile")
+SESSION_FILE = os.path.join(_BASE, "data", "fb_session.json")
 
 os.environ.setdefault(
     "PLAYWRIGHT_BROWSERS_PATH",
@@ -79,19 +80,26 @@ def extract_phone(text: str) -> str:
 class FBCrawler:
     """
     Crawl Facebook Group bằng Playwright Chromium.
-    Sử dụng chung persistent profile (chrome_profile) với Playwright trong poster.py.
+    - Chế độ đơn (use_session_file=False): dùng persistent profile chrome_profile.
+    - Chế độ worker song song (use_session_file=True): mở non-persistent browser
+      và nạp session từ SESSION_FILE (không tranh chấp lock file).
     """
 
     FB = "https://www.facebook.com"
 
-    def __init__(self, cookies: dict = None, stop_event=None):
+    def __init__(self, cookies: dict = None, stop_event=None, use_session_file: bool = False):
         self._debug_log: list[dict] = []
         self._stop_event = stop_event
         self.playwright = None
         self.context = None
         self.page = None
-        self._start_browser()
+        self._browser = None  # chỉ dùng khi use_session_file=True
+        if use_session_file and os.path.exists(SESSION_FILE):
+            self._start_browser_from_session()
+        else:
+            self._start_browser()
 
+    # ── Persistent profile (chế độ đơn / login) ───────────────────────────────
     def _start_browser(self):
         os.makedirs(PROFILE_DIR, exist_ok=True)
         print(f"[crawler] Đang mở Playwright Chromium profile: {PROFILE_DIR}")
@@ -113,6 +121,62 @@ class FBCrawler:
                 "Không thể mở cửa sổ trình duyệt. Hãy đảm bảo bạn đã ĐÓNG cửa sổ 'Kết nối Facebook' trước khi bấm Crawl!"
             ) from e
 
+    # ── Non-persistent browser từ session file (chế độ worker song song) ─────
+    def _start_browser_from_session(self):
+        print(f"[crawler][worker] Khởi động browser từ session file: {SESSION_FILE}")
+        try:
+            self.playwright = sync_playwright().start()
+            self._browser = self.playwright.chromium.launch(
+                headless=False,
+                args=["--disable-blink-features=AutomationControlled"],
+                ignore_default_args=["--enable-automation"],
+            )
+            self.context = self._browser.new_context(
+                storage_state=SESSION_FILE,
+                viewport={"width": 1366, "height": 768},
+            )
+            self.page = self.context.new_page()
+            print("[crawler][worker] Browser worker sẵn sàng!")
+        except Exception as e:
+            print(f"[crawler][worker] Lỗi khởi động worker browser: {e}")
+            self.close()
+            raise RuntimeError(f"Không thể mở worker browser: {e}") from e
+
+    # ── Export session từ main profile (gọi 1 lần trước khi spawn workers) ────
+    @staticmethod
+    def export_session() -> bool:
+        """
+        Mở chrome_profile bằng headless browser, export storage_state
+        (cookies + localStorage) ra SESSION_FILE để workers dùng.
+        Trả về True nếu thành công.
+        """
+        os.makedirs(os.path.join(_BASE, "data"), exist_ok=True)
+        print(f"[crawler] Export session từ main profile → {SESSION_FILE}")
+        pw  = None
+        ctx = None
+        try:
+            pw  = sync_playwright().start()
+            ctx = pw.chromium.launch_persistent_context(
+                PROFILE_DIR,
+                headless=True,
+                args=["--disable-blink-features=AutomationControlled"],
+                ignore_default_args=["--enable-automation"],
+            )
+            # Không cần navigate — chỉ cần đọc cookies đang có trong profile
+            ctx.storage_state(path=SESSION_FILE)
+            print(f"[crawler] ✅ Export session thành công.")
+            return True
+        except Exception as e:
+            print(f"[crawler] ❌ Không thể export session: {e}")
+            return False
+        finally:
+            if ctx:
+                try: ctx.close()
+                except Exception: pass
+            if pw:
+                try: pw.stop()
+                except Exception: pass
+
     def search_group(
         self,
         group_id: str,
@@ -130,7 +194,7 @@ class FBCrawler:
 
         try:
             self.page.goto(search_url, wait_until="domcontentloaded", timeout=40000)
-            self.page.wait_for_timeout(4000)
+            self.page.wait_for_timeout(2500)
 
             if "/login" in self.page.url or "checkpoint" in self.page.url:
                 raise RuntimeError("Session hết hạn hoặc chưa đăng nhập. Vui lòng nhấn 'Kết nối Facebook' để đăng nhập lại!")
@@ -154,16 +218,16 @@ class FBCrawler:
                     break
 
                 self.page.evaluate("window.scrollTo(0, document.body.scrollHeight);")
-                self.page.wait_for_timeout(2500)
+                self.page.wait_for_timeout(1800)
                 scrolls += 1
 
                 new_h = self.page.evaluate("document.body.scrollHeight")
                 if new_h == last_h:
                     stale_cnt += 1
-                    if stale_cnt >= 3:
+                    if stale_cnt >= 2:
                         print(f"[crawler] {group_id}/{keyword}: Không thể cuộn thêm (scrollHeight giữ nguyên). Dừng crawl.")
                         break
-                    self.page.wait_for_timeout(2000)
+                    self.page.wait_for_timeout(1500)
                 else:
                     stale_cnt = 0
                     last_h = new_h
@@ -219,6 +283,12 @@ class FBCrawler:
             except Exception:
                 pass
             self.context = None
+        if self._browser:
+            try:
+                self._browser.close()
+            except Exception:
+                pass
+            self._browser = None
         if self.playwright:
             try:
                 self.playwright.stop()
