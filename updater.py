@@ -85,45 +85,67 @@ def apply_update(zip_path: Path):
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
-def main():
-    print("=" * 52)
-    print("  FB Auto Poster — Kiểm tra cập nhật...")
-    print("=" * 52)
-
+def check_and_update():
+    """Kiểm tra GitHub và cập nhật nếu có bản mới. Có thể ném lỗi — main() sẽ bắt."""
     cur = current_version()
     print(f"  Phiên bản hiện tại: v{cur}")
 
     # Nếu chưa cấu hình GitHub, bỏ qua update
     if GITHUB_OWNER == "YOUR_GITHUB_USERNAME":
         print("  [!] Chưa cấu hình GitHub — bỏ qua cập nhật.")
-    else:
-        release = fetch_latest_release()
-        if release is None:
-            print("  [!] Không kết nối được GitHub — bỏ qua cập nhật.")
-        else:
-            latest_tag = release.get("tag_name", "0.0.0")
-            print(f"  Phiên bản mới nhất : {latest_tag}")
+        return
 
-            if parse_version(latest_tag) > parse_version(cur):
-                # Tìm asset là file .zip
-                assets = [a for a in release.get("assets", []) if a["name"].endswith(".zip")]
-                if not assets:
-                    print("  [!] Không tìm thấy file ZIP trong release — bỏ qua.")
-                else:
-                    asset = assets[0]
-                    print(f"  --> Đang tải bản mới: {asset['name']} ({asset['size'] // 1024} KB)...")
-                    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tf:
-                        tmp_zip = Path(tf.name)
-                    try:
-                        download_file(asset["browser_download_url"], tmp_zip)
-                        print("  --> Đang áp dụng cập nhật...")
-                        apply_update(tmp_zip)
-                        VERSION_FILE.write_text(latest_tag.lstrip("v") + "\n", encoding="utf-8")
-                        print(f"  ✅ Đã cập nhật lên {latest_tag}!")
-                    finally:
-                        tmp_zip.unlink(missing_ok=True)
-            else:
-                print("  ✅ Đang dùng phiên bản mới nhất.")
+    release = fetch_latest_release()
+    if release is None:
+        print("  [!] Không kết nối được GitHub — bỏ qua cập nhật.")
+        return
+
+    latest_tag = release.get("tag_name", "0.0.0")
+    print(f"  Phiên bản mới nhất : {latest_tag}")
+
+    if parse_version(latest_tag) <= parse_version(cur):
+        print("  ✅ Đang dùng phiên bản mới nhất.")
+        return
+
+    # Tìm asset là file .zip
+    assets = [a for a in release.get("assets", []) if a.get("name", "").lower().endswith(".zip")]
+    if not assets:
+        print("  [!] Không tìm thấy file ZIP trong release — bỏ qua.")
+        return
+
+    asset = assets[0]
+    print(f"  --> Đang tải bản mới: {asset['name']} ({asset.get('size', 0) // 1024} KB)...")
+    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tf:
+        tmp_zip = Path(tf.name)
+    try:
+        download_file(asset["browser_download_url"], tmp_zip)
+        # Kiểm tra trước khi đụng vào file nào của app
+        if not zipfile.is_zipfile(tmp_zip):
+            print("  [!] File tải về không phải ZIP hợp lệ — bỏ qua cập nhật.")
+            return
+        with zipfile.ZipFile(tmp_zip) as zf:
+            bad = zf.testzip()
+        if bad is not None:
+            print(f"  [!] File ZIP bị hỏng ({bad}) — bỏ qua cập nhật.")
+            return
+        print("  --> Đang áp dụng cập nhật...")
+        apply_update(tmp_zip)
+        VERSION_FILE.write_text(latest_tag.lstrip("v") + "\n", encoding="utf-8")
+        print(f"  ✅ Đã cập nhật lên {latest_tag}!")
+    finally:
+        tmp_zip.unlink(missing_ok=True)
+
+
+def main():
+    print("=" * 52)
+    print("  FB Auto Poster — Kiểm tra cập nhật...")
+    print("=" * 52)
+
+    # Cập nhật lỗi thì vẫn phải mở được app
+    try:
+        check_and_update()
+    except Exception as e:
+        print(f"  [!] Cập nhật thất bại ({type(e).__name__}: {e}) — tiếp tục dùng bản hiện tại.")
 
     print("=" * 52)
     print()

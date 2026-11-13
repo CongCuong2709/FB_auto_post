@@ -1170,35 +1170,6 @@
     }
 
     /* ═══════════════════════════════════════════════
-   PAGE: SCHEDULE
-═══════════════════════════════════════════════ */
-    .sched-card {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 14px 18px;
-      border-radius: var(--radius);
-      background: var(--surface2);
-      border: 1px solid var(--border2);
-      margin-bottom: 10px;
-      animation: fadeIn .2s ease;
-    }
-
-    .sched-time {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--accent2);
-      white-space: nowrap;
-      min-width: 130px;
-    }
-
-    .sched-id {
-      font-size: 11px;
-      color: var(--text3);
-      flex: 1
-    }
-
-    /* ═══════════════════════════════════════════════
    PAGE: HISTORY
 ═══════════════════════════════════════════════ */
     .hist-row {
@@ -1440,10 +1411,6 @@
         <span class="icon">👥</span> Quản lý Group
         <span class="nav-badge" id="groupBadge">0</span>
       </button>
-      <button class="nav-btn" data-tab="schedule" onclick="switchTab('schedule',this)">
-        <span class="icon">📅</span> Lịch đã đặt
-        <span class="nav-badge" id="schedBadge" style="display:none">0</span>
-      </button>
       <button class="nav-btn" data-tab="history" onclick="switchTab('history',this)">
         <span class="icon">📋</span> Lịch sử
       </button>
@@ -1530,19 +1497,19 @@
             <div class="card">
               <div class="card-title">⏱️ Thời gian chờ giữa các group</div>
               <div class="form-group">
-                <label class="form-label">Tối thiểu (phút)</label>
+                <label class="form-label">Tối thiểu (giây)</label>
                 <div class="range-wrap">
-                  <input type="range" id="minDelay" min="1" max="10" value="1"
-                    oninput="document.getElementById('minDelayVal').textContent=this.value+' phút'" />
-                  <span class="range-val" id="minDelayVal">1 phút</span>
+                  <input type="range" id="minDelay" min="10" max="120" step="5" value="30"
+                    oninput="document.getElementById('minDelayVal').textContent=this.value+' giây'" />
+                  <span class="range-val" id="minDelayVal">30 giây</span>
                 </div>
               </div>
               <div class="form-group">
-                <label class="form-label">Tối đa (phút)</label>
+                <label class="form-label">Tối đa (giây)</label>
                 <div class="range-wrap">
-                  <input type="range" id="maxDelay" min="2" max="20" value="5"
-                    oninput="document.getElementById('maxDelayVal').textContent=this.value+' phút'" />
-                  <span class="range-val" id="maxDelayVal">10 phút</span>
+                  <input type="range" id="maxDelay" min="20" max="300" step="10" value="90"
+                    oninput="document.getElementById('maxDelayVal').textContent=this.value+' giây'" />
+                  <span class="range-val" id="maxDelayVal">90 giây</span>
                 </div>
               </div>
               <p style="font-size:11px;color:var(--text3);margin-top:-6px">
@@ -1557,9 +1524,6 @@
                 <button class="btn btn-primary" id="postNowBtn" onclick="postNow()"
                   style="justify-content:center;padding:12px">
                   <span>🚀</span> Đăng ngay
-                </button>
-                <button class="btn btn-ghost" onclick="openScheduleModal()" style="justify-content:center">
-                  <span>📅</span> Hẹn giờ đăng
                 </button>
               </div>
               <div class="progress-wrap" id="progressWrap" style="display:none;margin-top:12px">
@@ -1586,14 +1550,6 @@
             <button class="btn btn-ghost btn-sm" onclick="collapseAllCats()" title="Thu gọn tất cả">⊟</button>
           </div>
           <div id="groupsList"></div>
-        </div>
-      </div>
-
-      <!-- ── TAB: SCHEDULE ─────────────────────── -->
-      <div class="tab-panel" id="tab-schedule">
-        <div class="card">
-          <div class="card-title">📅 Lịch đăng bài sắp tới</div>
-          <div id="schedList"></div>
         </div>
       </div>
 
@@ -1810,26 +1766,6 @@
   </div>
 
   <!-- ══════════════════════════════════════════
-     MODAL: Schedule
-══════════════════════════════════════════ -->
-  <div class="modal-overlay" id="modalSchedule">
-    <div class="modal">
-      <div class="modal-title">📅 Hẹn giờ đăng bài</div>
-      <div class="form-group">
-        <label class="form-label">Thời điểm đăng</label>
-        <input class="form-input" type="datetime-local" id="schedTime" />
-      </div>
-      <p style="font-size:12px;color:var(--text2)">
-        Bài sẽ được đăng lên tất cả group đang được chọn vào đúng giờ này.
-      </p>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" onclick="closeModal('modalSchedule')">Hủy</button>
-        <button class="btn btn-primary" onclick="schedulePost()">📅 Đặt lịch</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ══════════════════════════════════════════
      MODAL: Save Template
 ══════════════════════════════════════════ -->
   <div class="modal-overlay" id="modalSaveTemplate">
@@ -1857,7 +1793,6 @@
     let templates = [];
     let selGroups = new Set();  // selected group indices
     let isRunning = false;
-    let schedJobs = [];
 
     // ═══════════════════════════════════════════
     //  INIT
@@ -1868,14 +1803,9 @@
       renderGroups();
       renderCrawlGroupChips();
       loadHistory();
-      loadScheduledJobs();
       loadCrawlState();
       startSSE();
       pollStatus();
-      // Set default schedule time to 1 hour from now
-      const dt = new Date(Date.now() + 3600_000);
-      dt.setSeconds(0, 0);
-      document.getElementById('schedTime').value = dt.toISOString().slice(0, 16);
       // Char counter (now handled by updateCharCount() in RTE setup)
     })();
 
@@ -1968,7 +1898,6 @@
       document.getElementById('tab-' + name).classList.add('active');
       el.classList.add('active');
 
-      if (name === 'schedule') loadScheduledJobs();
       if (name === 'history') loadHistory();
       if (name === 'crawl') loadCrawlState();
     }
@@ -2368,8 +2297,8 @@
       if (selGroups.size === 0) { alert('Chưa chọn group nào!'); return; }
 
       const selectedGroups = [...selGroups].map(i => groups[i]);
-      const minDelay = parseInt(document.getElementById('minDelay').value) * 60;
-      const maxDelay = parseInt(document.getElementById('maxDelay').value) * 60;
+      const minDelay = parseInt(document.getElementById('minDelay').value);
+      const maxDelay = parseInt(document.getElementById('maxDelay').value);
 
       const r = await api('/api/post', {
         method: 'POST',
@@ -2392,77 +2321,6 @@
     }
 
     // ═══════════════════════════════════════════
-    //  SCHEDULE
-    // ═══════════════════════════════════════════
-    function openScheduleModal() {
-      const content = getEditorPlainText();
-      if (!content) { alert('Soạn nội dung trước!'); return; }
-      if (selGroups.size === 0) { alert('Chưa chọn group nào!'); return; }
-      openModal('modalSchedule');
-    }
-
-    async function schedulePost() {
-      const content = getEditorPlainText();
-      const htmlContent = document.getElementById('postContent').innerHTML;
-      const runTime = document.getElementById('schedTime').value;
-      const minDelay = parseInt(document.getElementById('minDelay').value) * 60;
-      const maxDelay = parseInt(document.getElementById('maxDelay').value) * 60;
-      const selList = [...selGroups].map(i => groups[i]);
-
-      if (!runTime) { alert('Chọn thời gian!'); return; }
-
-      const r = await api('/api/schedule', {
-        method: 'POST',
-        body: JSON.stringify({
-          content,
-          html_content: htmlContent,
-          groups: selList,
-          run_time: runTime,
-          min_delay: minDelay,
-          max_delay: maxDelay
-        })
-      });
-
-      if (r.status === 'ok') {
-        const dt = new Date(runTime).toLocaleString('vi-VN');
-        addLog(nowTime(), `📅 Đã đặt lịch đăng vào ${dt}`, 'success');
-        closeModal('modalSchedule');
-        loadScheduledJobs();
-      } else {
-        alert('Lỗi: ' + r.message);
-      }
-    }
-
-    async function loadScheduledJobs() {
-      schedJobs = await api('/api/jobs');
-      const badge = document.getElementById('schedBadge');
-      const el = document.getElementById('schedList');
-
-      badge.style.display = schedJobs.length ? 'flex' : 'none';
-      badge.textContent = schedJobs.length;
-
-      if (!schedJobs.length) {
-        el.innerHTML = `<div class="empty-state"><div class="empty-icon">📅</div><p>Chưa có lịch đăng nào.</p></div>`;
-        return;
-      }
-
-      el.innerHTML = schedJobs.map(j => `
-    <div class="sched-card">
-      <span class="sched-time">⏰ ${j.next_run}</span>
-      <span class="sched-id">${j.id}</span>
-      <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="cancelJob('${j.id}')">🗑️ Hủy</button>
-    </div>
-  `).join('');
-    }
-
-    async function cancelJob(id) {
-      if (!confirm('Hủy lịch đăng này?')) return;
-      await api(`/api/jobs/${encodeURIComponent(id)}`, { method: 'DELETE' });
-      addLog(nowTime(), '🗑️ Đã hủy lịch đăng.', 'warning');
-      loadScheduledJobs();
-    }
-
-    // ═══════════════════════════════════════════
     //  STOP
     // ═══════════════════════════════════════════
     async function stopPosting() {
@@ -2482,7 +2340,7 @@
       }
       el.innerHTML = hist.map(h => `
     <div class="hist-row">
-      <div class="hist-meta">📅 ${h.time}<br><span style="color:var(--accent2)">${h.groups} group</span></div>
+      <div class="hist-meta">📅 ${h.time}<br><span style="color:var(--accent2)">${h.groups} group</span>${h.status === 'running' ? '<br>⏳ đang đăng' : (h.ok !== undefined ? `<br>✅ ${h.ok} · ❌ ${h.failed}` : '')}</div>
       <div class="hist-preview">${escHtml(h.preview)}</div>
     </div>
   `).join('');
@@ -2493,7 +2351,8 @@
     // ═══════════════════════════════════════════
     async function connectFacebook() {
       addLog(nowTime(), '🔐 Đang mở trình duyệt để kết nối Facebook…', 'info');
-      await api('/api/connect-facebook', { method: 'POST' });
+      const r = await api('/api/connect-facebook', { method: 'POST' });
+      if (r && r.status === 'error') { addLog(nowTime(), '⚠️ ' + r.message, 'warning'); alert(r.message); }
     }
 
     // ═══════════════════════════════════════════

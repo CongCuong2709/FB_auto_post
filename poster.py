@@ -60,9 +60,11 @@ class FacebookPoster:
 
     # ─── Multi-group posting ───────────────────────────────────────────────────
     def post_to_groups(self, groups: list, content: str,
-                       min_delay: int = 180, max_delay: int = 600,
+                       min_delay: int = 30, max_delay: int = 90,
                        html_content: str = None):
-        """Post *content* to every group in *groups*, with random delays in between."""
+        """Post *content* to every group in *groups*, with random delays in between.
+        Trả về (số group thành công, số group thất bại)."""
+        min_delay, max_delay = sorted((max(0, int(min_delay)), max(0, int(max_delay))))
         self.is_running = True
         self.should_stop = False
         total = len(groups)
@@ -99,14 +101,12 @@ class FacebookPoster:
                     # Delay (except after the last group)
                     if i < total - 1 and not self.should_stop:
                         delay = random.randint(min_delay, max_delay)
-                        self.log(
-                            f"⏳ Nghỉ {delay // 60} phút {delay % 60} giây…",
-                            "info",
-                        )
+                        wait_txt = f"{delay // 60} phút {delay % 60} giây" if delay >= 60 else f"{delay} giây"
+                        self.log(f"⏳ Nghỉ {wait_txt}…", "info")
                         elapsed = 0
                         while elapsed < delay and not self.should_stop:
-                            time.sleep(5)
-                            elapsed += 5
+                            time.sleep(1)
+                            elapsed += 1
 
                 try:
                     ctx.close()
@@ -114,15 +114,21 @@ class FacebookPoster:
                     pass
 
         except Exception as e:
-            self.log(f"❌ Lỗi nghiêm trọng: {str(e)[:150]}", "error")
+            msg = str(e)
+            if "user data directory is already in use" in msg.lower() or "processsingleton" in msg.lower():
+                msg = "Trình duyệt Facebook đang được dùng (cửa sổ 'Kết nối Facebook' còn mở?). " + msg
+            self.log(f"❌ Lỗi nghiêm trọng: {msg[:200]}", "error")
+            fail = total - ok   # các group chưa đăng được tính là thất bại
+        finally:
+            self.is_running = False
 
-        self.is_running = False
         level = "success" if fail == 0 else ("warning" if ok > 0 else "error")
         self.log(
             f"🏁 Xong!  ✅ {ok} thành công  |  ❌ {fail} thất bại",
             level,
         )
         self.log_queue.put({"type": "done", "success": ok, "failed": fail})
+        return ok, fail
 
     # ─── Single-group posting (internal) ──────────────────────────────────────
     def _post_single(self, ctx, group_url: str, content: str, html_content: str = None) -> bool:
@@ -213,8 +219,8 @@ class FacebookPoster:
                 try:
                     btn = page.locator(sel).last
                     if btn.is_visible(timeout=2_000) and btn.is_enabled():
-                        # btn.click()
-                        # submitted = True
+                        btn.click()
+                        submitted = True
                         break
                 except Exception:
                     continue

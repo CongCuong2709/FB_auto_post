@@ -75,3 +75,6 @@ htmlcov/
 python/
 
 debug/
+
+# Script dong goi release
+make_release.py

@@ -4,14 +4,12 @@ import queue
 import re
 import threading
 import webbrowser
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import CancelledError, ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 import openpyxl
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
-from apscheduler.executors.pool import ThreadPoolExecutor as APThreadPoolExecutor
-from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, Response, jsonify, render_template, request, send_file
 
 from poster import FacebookPoster
@@ -31,8 +29,15 @@ os.makedirs(DATA_DIR, exist_ok=True)
 log_queue = queue.Queue()
 poster    = FacebookPoster(log_queue)
 
-scheduler = BackgroundScheduler(executors={"default": APThreadPoolExecutor(1)})
-scheduler.start()
+# Chỉ cho 1 lượt đăng chạy tại một thời điểm (chặn bấm đúp / bấm khi đang đăng)
+_post_lock = threading.Lock()
+
+# Thời gian nghỉ mặc định giữa 2 group khi đăng (giây)
+DEFAULT_MIN_DELAY = 30
+DEFAULT_MAX_DELAY = 90
+
+# Số Chrome crawl chạy song song (cố định)
+CRAWL_WORKERS = 2
 
 # ─── Crawl Posts state ───────────────────────────────────────────────────────
 _crawl_state: dict = {
@@ -115,93 +120,110 @@ def templates():
     return jsonify({"status": "ok"})
 
 # ── Facebook connect ──────────────────────────────────────────────────────────
+_connecting = threading.Event()   # cửa sổ "Kết nối Facebook" đang mở (đang giữ chrome_profile)
+
+
+def _crawl_running() -> bool:
+    with _crawl_lock:
+        return _crawl_state["running"]
+
+
+def _run_connect():
+    try:
+        poster.connect_facebook()
+    finally:
+        _connecting.clear()
+
+
 @app.route("/api/connect-facebook", methods=["POST"])
 def connect_facebook():
-    t = threading.Thread(target=poster.connect_facebook, daemon=True)
-    t.start()
+    if poster.is_running or _post_lock.locked():
+        return jsonify({"status": "error", "message": "Đang đăng bài — hãy đợi đăng xong rồi mới kết nối lại Facebook."})
+    if _crawl_running():
+        return jsonify({"status": "error", "message": "Đang crawl — hãy đợi crawl xong rồi mới kết nối lại Facebook."})
+    if _connecting.is_set():
+        return jsonify({"status": "error", "message": "Cửa sổ kết nối Facebook đang mở rồi."})
+    _connecting.set()
+    threading.Thread(target=_run_connect, daemon=True).start()
     return jsonify({"status": "ok"})
 
 # ── Post now ──────────────────────────────────────────────────────────────────
+def _to_int(value, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _finish_history(hist_id: str, ok: int, failed: int):
+    hist = load_json(HISTORY_F, [])
+    for h in hist:
+        if h.get("id") == hist_id:
+            h["status"] = "success" if failed == 0 else ("partial" if ok else "failed")
+            h["ok"], h["failed"] = ok, failed
+            break
+    save_json(HISTORY_F, hist)
+
+
+def _run_post(hist_id, groups, content, min_del, max_del, html_content):
+    try:
+        ok, failed = poster.post_to_groups(groups, content, min_del, max_del, html_content)
+        _finish_history(hist_id, ok, failed)
+    finally:
+        _post_lock.release()
+
+
 @app.route("/api/post", methods=["POST"])
 def post_now():
-    if poster.is_running:
-        return jsonify({"status": "error", "message": "Đang có lần đăng đang chạy!"})
+    if _connecting.is_set():
+        return jsonify({"status": "error", "message": "Hãy đóng cửa sổ 'Kết nối Facebook' trước khi đăng."})
+    if _crawl_running():
+        return jsonify({"status": "error", "message": "Đang crawl — hãy đợi crawl xong (hoặc bấm Dừng) rồi mới đăng."})
+    # Mỗi lần chỉ 1 lượt đăng
+    if not _post_lock.acquire(blocking=False):
+        return jsonify({"status": "error", "message": "Đang có lượt đăng đang chạy, đợi xong rồi đăng tiếp!"})
 
-    d        = request.json
-    content  = d.get("content", "").strip()
-    html_content = d.get("html_content", "").strip()
-    groups   = d.get("groups", [])
-    min_del  = int(d.get("min_delay", 180))
-    max_del  = int(d.get("max_delay", 600))
-
-    if not content:
-        return jsonify({"status": "error", "message": "Nội dung không được để trống!"})
-    if not groups:
-        return jsonify({"status": "error", "message": "Chưa chọn group nào!"})
-
-    # Save history entry
-    hist = load_json(HISTORY_F, [])
-    hist.insert(0, {
-        "id":      datetime.now().isoformat(),
-        "preview": content[:80] + ("…" if len(content) > 80 else ""),
-        "groups":  len(groups),
-        "time":    datetime.now().strftime("%d/%m/%Y %H:%M"),
-        "status":  "running",
-    })
-    save_json(HISTORY_F, hist[:30])
-
-    t = threading.Thread(
-        target=poster.post_to_groups,
-        args=[groups, content, min_del, max_del, html_content],
-        daemon=True,
-    )
-    t.start()
-    return jsonify({"status": "ok"})
-
-# ── Schedule ──────────────────────────────────────────────────────────────────
-@app.route("/api/schedule", methods=["POST"])
-def schedule_post():
-    d       = request.json
-    content = d.get("content", "").strip()
-    html_content = d.get("html_content", "").strip()
-    groups  = d.get("groups", [])
-    rt_str  = d.get("run_time", "")
-    min_del = int(d.get("min_delay", 180))
-    max_del = int(d.get("max_delay", 600))
-
-    if not (content and groups and rt_str):
-        return jsonify({"status": "error", "message": "Thiếu thông tin!"})
-
+    started = False
     try:
-        run_dt = datetime.fromisoformat(rt_str)
-    except ValueError:
-        return jsonify({"status": "error", "message": "Thời gian không hợp lệ!"})
+        d        = request.get_json(silent=True) or {}
+        content  = (d.get("content") or "").strip()
+        html_content = (d.get("html_content") or "").strip()
+        groups   = d.get("groups") or []
+        min_del  = max(0, _to_int(d.get("min_delay"), DEFAULT_MIN_DELAY))
+        max_del  = max(0, _to_int(d.get("max_delay"), DEFAULT_MAX_DELAY))
+        if min_del > max_del:
+            min_del, max_del = max_del, min_del
 
-    job_id = f"post_{int(run_dt.timestamp())}"
-    scheduler.add_job(
-        poster.post_to_groups,
-        trigger="date",
-        run_date=run_dt,
-        args=[groups, content, min_del, max_del, html_content],
-        id=job_id,
-        replace_existing=True,
-    )
-    return jsonify({"status": "ok", "job_id": job_id, "run_time": rt_str})
+        if not content:
+            return jsonify({"status": "error", "message": "Nội dung không được để trống!"})
+        if not groups:
+            return jsonify({"status": "error", "message": "Chưa chọn group nào!"})
 
-@app.route("/api/jobs", methods=["GET"])
-def get_jobs():
-    return jsonify([
-        {"id": j.id, "next_run": j.next_run_time.strftime("%d/%m/%Y %H:%M:%S")}
-        for j in scheduler.get_jobs() if j.next_run_time
-    ])
+        # Save history entry
+        hist_id = datetime.now().isoformat()
+        hist = load_json(HISTORY_F, [])
+        hist.insert(0, {
+            "id":      hist_id,
+            "preview": content[:80] + ("…" if len(content) > 80 else ""),
+            "groups":  len(groups),
+            "time":    datetime.now().strftime("%d/%m/%Y %H:%M"),
+            "status":  "running",
+        })
+        save_json(HISTORY_F, hist[:30])
 
-@app.route("/api/jobs/<job_id>", methods=["DELETE"])
-def cancel_job(job_id):
-    try:
-        scheduler.remove_job(job_id)
+        poster.is_running = True   # báo "đang chạy" ngay, trước khi thread kịp khởi động
+        threading.Thread(
+            target=_run_post,
+            args=(hist_id, groups, content, min_del, max_del, html_content),
+            daemon=True,
+        ).start()
+        started = True
         return jsonify({"status": "ok"})
-    except Exception:
-        return jsonify({"status": "error", "message": "Không tìm thấy lịch này."})
+    finally:
+        if not started:
+            poster.is_running = False
+            _post_lock.release()
+
 
 # ── Stop / status / history ───────────────────────────────────────────────────
 @app.route("/api/stop", methods=["POST"])
@@ -224,6 +246,10 @@ def crawl_posts_start():
     with _crawl_lock:
         if _crawl_state["running"]:
             return jsonify({"error": "Đang crawl, vui lòng đợi…"}), 409
+    if poster.is_running or _post_lock.locked():
+        return jsonify({"error": "Đang đăng bài — hãy đợi đăng xong (hoặc bấm Dừng) rồi mới crawl."}), 409
+    if _connecting.is_set():
+        return jsonify({"error": "Hãy đóng cửa sổ 'Kết nối Facebook' trước khi crawl."}), 409
 
     data      = request.get_json(force=True)
     raw_groups = data.get("groups", [])
@@ -253,7 +279,7 @@ def crawl_posts_start():
             seen_kw.add(lk)
             keywords.append(r_kw)
 
-    max_workers = max(1, min(int(data.get("max_workers", 2)), 5))  # giới hạn 1-5 Chrome
+    max_workers = CRAWL_WORKERS
 
     total = len(groups) * len(keywords)
     _crawl_stop.clear()
@@ -293,9 +319,12 @@ def _crawl_one_task(g_id: str, g_name: str, kw: str) -> list[dict]:
         posts = crawler.search_group(g_id, kw, group_name=g_name)
         print(f"[crawl-posts][worker] {g_name!r} × {kw!r}: tìm thấy {len(posts)} bài")
     except RuntimeError as e:
+        # Session hết hạn / không mở được trình duyệt → dừng cả đợt và ghi lại lý do
         print(f"[crawl-posts][worker] RuntimeError: {e}")
-        _crawl_stop.set()  # Dừng tất cả worker nếu session hết hạn
-        raise
+        with _crawl_lock:
+            if not _crawl_state.get("error"):
+                _crawl_state["error"] = str(e)
+        _crawl_stop.set()
     except Exception as exc:
         print(f"[crawl-posts][worker] Bỏ qua lỗi: {exc}")
     finally:
@@ -313,11 +342,10 @@ def _crawl_one_task(g_id: str, g_name: str, kw: str) -> list[dict]:
     return posts
 
 
-def _run_crawl_posts(groups, keywords, max_workers: int = 2):
+def _run_crawl_posts(groups, keywords, max_workers: int = CRAWL_WORKERS):
     # ── Bước 1: Export session từ main profile ra file JSON ──────────────
     print("[crawl-posts] Đang export session Facebook cho workers...")
-    session_ok = FBCrawler.export_session()
-    if not session_ok:
+    if not FBCrawler.export_session():
         _cset(
             running=False, done=True,
             error="Không thể mở session Facebook. Vui lòng bấm 'Kết nối Facebook' rồi đăng nhập lại."
@@ -350,23 +378,22 @@ def _run_crawl_posts(groups, keywords, max_workers: int = 2):
             }
             for future in as_completed(futures):
                 g_id, g_name, kw = futures[future]
-                if _crawl_stop.is_set():
-                    # Huỷ các future còn lại
-                    for f in futures:
-                        f.cancel()
-                    break
+                # Luôn lấy kết quả của task đã xong (kể cả khi đang dừng) để không mất bài
                 try:
-                    result = future.result()
-                    all_posts.extend(result)
-                except RuntimeError:
-                    _cset(running=False, done=True, error="Session hết hạn. Vui lòng kết nối lại Facebook.")
-                    return
+                    all_posts.extend(future.result())
+                except CancelledError:
+                    pass
                 except Exception as exc:
                     print(f"[crawl-posts] Future lỗi ({g_name!r} × {kw!r}): {exc}")
+                if _crawl_stop.is_set():
+                    # Huỷ các task chưa bắt đầu; task đang chạy sẽ tự dừng theo stop_event
+                    for f in futures:
+                        f.cancel()
 
         unique = deduplicate_posts(all_posts)
         clean  = [{k: v for k, v in p.items() if k != "date_obj"} for p in unique]
         print(f"[crawl-posts] Xong: {len(all_posts)} bài thô → {len(unique)} sau dedup")
+        # Giữ nguyên "error" (nếu worker đã ghi) để giao diện hiện lý do dừng
         _cset(running=False, done=True, results=clean)
 
         log_queue.put({
